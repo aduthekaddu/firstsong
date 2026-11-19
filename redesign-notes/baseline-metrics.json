@@ -1,0 +1,497 @@
+{
+  "mode": "baseline",
+  "timestamp": "2026-11-19T04:00:58.920Z",
+  "bundle": {
+    "js": {
+      "files": 13,
+      "raw": 784486,
+      "gzip": 246938,
+      "list": [
+        {
+          "file": "_next/static/chunks/10c454jx9phor.js",
+          "raw": 229277,
+          "gzip": 71890
+        },
+        {
+          "file": "_next/static/chunks/312d0k-cd58cg.js",
+          "raw": 172302,
+          "gzip": 59195
+        },
+        {
+          "file": "_next/static/chunks/16n_8jf4tqz47.js",
+          "raw": 169987,
+          "gzip": 46649
+        },
+        {
+          "file": "_next/static/chunks/0cz1d0mv5g_q7.js",
+          "raw": 112594,
+          "gzip": 39494
+        },
+        {
+          "file": "_next/static/chunks/2ganr6hdywccb.js",
+          "raw": 38605,
+          "gzip": 11123
+        },
+        {
+          "file": "_next/static/chunks/3ahao9b726y7t.js",
+          "raw": 29226,
+          "gzip": 7715
+        },
+        {
+          "file": "_next/static/chunks/318vd_uhd1odi.js",
+          "raw": 13999,
+          "gzip": 3531
+        },
+        {
+          "file": "_next/static/chunks/turbopack-2u1d16houkiyo.js",
+          "raw": 9974,
+          "gzip": 3919
+        },
+        {
+          "file": "_next/static/chunks/44ks15hsmz9f7.js",
+          "raw": 5363,
+          "gzip": 1955
+        },
+        {
+          "file": "_next/static/chunks/1yu5_geidf02d.js",
+          "raw": 2764,
+          "gzip": 1186
+        },
+        {
+          "file": "_next/static/u5v7lVQnM2H7FLRJ_8De-/_buildManifest.js",
+          "raw": 219,
+          "gzip": 151
+        },
+        {
+          "file": "_next/static/u5v7lVQnM2H7FLRJ_8De-/_clientMiddlewareManifest.js",
+          "raw": 96,
+          "gzip": 66
+        },
+        {
+          "file": "_next/static/u5v7lVQnM2H7FLRJ_8De-/_ssgManifest.js",
+          "raw": 80,
+          "gzip": 64
+        }
+      ]
+    },
+    "css": {
+      "files": 1,
+      "raw": 32429,
+      "gzip": 6910,
+      "list": [
+        {
+          "file": "_next/static/chunks/09v3p85rq4bgn.css",
+          "raw": 32429,
+          "gzip": 6910
+        }
+      ]
+    },
+    "fonts": {
+      "files": 16,
+      "raw": 266520,
+      "gzip": 266498,
+      "list": [
+        {
+          "file": "_next/static/media/jetbrains-mono-latin-wght-normal.2rmhnsrc80fag.woff2",
+          "raw": 40404,
+          "gzip": 40437
+        },
+        {
+          "file": "_next/static/media/dm-sans-latin-wght-normal.0tm8u-h63rec8.woff2",
+          "raw": 36932,
+          "gzip": 36856
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-400-italic.1bk2-9tco4m7m.woff2",
+          "raw": 22128,
+          "gzip": 22156
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-400-normal.3_vslfxq_--4i.woff2",
+          "raw": 21032,
+          "gzip": 21060
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-400-italic.3_-8f-v73506e.woff",
+          "raw": 19264,
+          "gzip": 19218
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-400-normal.2maraz2ovyahx.woff",
+          "raw": 18336,
+          "gzip": 18240
+        },
+        {
+          "file": "_next/static/media/dm-sans-latin-ext-wght-normal.0hiocdn10l05a.woff2",
+          "raw": 18228,
+          "gzip": 18256
+        },
+        {
+          "file": "_next/static/media/jetbrains-mono-latin-ext-wght-normal.3rxtet6g9i1k3.woff2",
+          "raw": 15196,
+          "gzip": 15219
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-ext-400-italic.30flr4oxtjagu.woff2",
+          "raw": 12384,
+          "gzip": 12407
+        },
+        {
+          "file": "_next/static/media/jetbrains-mono-cyrillic-wght-normal.0x7cg5h5x34js.woff2",
+          "raw": 12108,
+          "gzip": 12123
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-ext-400-normal.0ordxpm0gxgw8.woff2",
+          "raw": 11604,
+          "gzip": 11627
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-ext-400-italic.2vfzl0i35o8_c.woff",
+          "raw": 10508,
+          "gzip": 10471
+        },
+        {
+          "file": "_next/static/media/instrument-serif-latin-ext-400-normal.2z9xqimzvw6vx.woff",
+          "raw": 9860,
+          "gzip": 9823
+        },
+        {
+          "file": "_next/static/media/jetbrains-mono-greek-wght-normal.1k07jbkicvzf3.woff2",
+          "raw": 9004,
+          "gzip": 9027
+        },
+        {
+          "file": "_next/static/media/jetbrains-mono-vietnamese-wght-normal.0a13tgqsi9z78.woff2",
+          "raw": 7504,
+          "gzip": 7527
+        },
+        {
+          "file": "_next/static/media/jetbrains-mono-cyrillic-ext-wght-normal.1ladf10s224e1.woff2",
+          "raw": 2028,
+          "gzip": 2051
+        }
+      ]
+    },
+    "images": {
+      "files": 1,
+      "raw": 187448,
+      "gzip": 187526,
+      "list": [
+        {
+          "file": "guitar.webp",
+          "raw": 187448,
+          "gzip": 187526
+        }
+      ]
+    },
+    "html": {
+      "files": 6,
+      "raw": 156810,
+      "gzip": 27603,
+      "list": [
+        {
+          "file": "chords/index.html",
+          "raw": 70926,
+          "gzip": 7115
+        },
+        {
+          "file": "index.html",
+          "raw": 32508,
+          "gzip": 7227
+        },
+        {
+          "file": "week-1/index.html",
+          "raw": 28260,
+          "gzip": 6460
+        },
+        {
+          "file": "404/index.html",
+          "raw": 8372,
+          "gzip": 2267
+        },
+        {
+          "file": "404.html",
+          "raw": 8372,
+          "gzip": 2267
+        },
+        {
+          "file": "_not-found/index.html",
+          "raw": 8372,
+          "gzip": 2267
+        }
+      ]
+    },
+    "other": {
+      "files": 18,
+      "raw": 102486,
+      "gzip": 32066,
+      "list": [
+        {
+          "file": "chords/__next._full.txt",
+          "raw": 13688,
+          "gzip": 2798
+        },
+        {
+          "file": "chords/index.txt",
+          "raw": 13688,
+          "gzip": 2798
+        },
+        {
+          "file": "chords/__next.chords.__PAGE__.txt",
+          "raw": 12941,
+          "gzip": 2716
+        },
+        {
+          "file": "__next._full.txt",
+          "raw": 6670,
+          "gzip": 2573
+        },
+        {
+          "file": "index.txt",
+          "raw": 6670,
+          "gzip": 2573
+        },
+        {
+          "file": "week-1/__next._full.txt",
+          "raw": 6431,
+          "gzip": 2348
+        },
+        {
+          "file": "week-1/index.txt",
+          "raw": 6431,
+          "gzip": 2348
+        },
+        {
+          "file": "__next.__PAGE__.txt",
+          "raw": 6101,
+          "gzip": 2472
+        },
+        {
+          "file": "week-1/__next.week-1.__PAGE__.txt",
+          "raw": 5654,
+          "gzip": 2245
+        },
+        {
+          "file": "_not-found/__next._full.txt",
+          "raw": 5017,
+          "gzip": 1520
+        },
+        {
+          "file": "_not-found/index.txt",
+          "raw": 5017,
+          "gzip": 1520
+        },
+        {
+          "file": "font-licenses/instrument-serif.txt",
+          "raw": 4532,
+          "gzip": 1977
+        },
+        {
+          "file": "font-licenses/dm-sans.txt",
+          "raw": 4502,
+          "gzip": 1990
+        },
+        {
+          "file": "_not-found/__next._not-found.__PAGE__.txt",
+          "raw": 4300,
+          "gzip": 1440
+        },
+        {
+          "file": "chords/__next._tree.txt",
+          "raw": 225,
+          "gzip": 192
+        },
+        {
+          "file": "week-1/__next._tree.txt",
+          "raw": 225,
+          "gzip": 192
+        },
+        {
+          "file": "_not-found/__next._tree.txt",
+          "raw": 218,
+          "gzip": 189
+        },
+        {
+          "file": "__next._tree.txt",
+          "raw": 176,
+          "gzip": 175
+        }
+      ]
+    }
+  },
+  "pages": [
+    {
+      "route": "/",
+      "width": 1440,
+      "file": "/home/ubuntu/firstsong/redesign-notes/before/home-1440.png",
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "scrollHeight": 1698,
+      "fontsLoaded": [
+        "DM Sans Variable (100 1000)",
+        "Instrument Serif (400)",
+        "JetBrains Mono Variable (100 800)"
+      ],
+      "errors": [
+        "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+      ]
+    },
+    {
+      "route": "/week-1/",
+      "width": 1440,
+      "file": "/home/ubuntu/firstsong/redesign-notes/before/week-1-1440.png",
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "scrollHeight": 1441,
+      "fontsLoaded": [
+        "DM Sans Variable (100 1000)",
+        "Instrument Serif (400)",
+        "JetBrains Mono Variable (100 800)"
+      ],
+      "errors": []
+    },
+    {
+      "route": "/chords/",
+      "width": 1440,
+      "file": "/home/ubuntu/firstsong/redesign-notes/before/chords-1440.png",
+      "scrollWidth": 1440,
+      "innerWidth": 1440,
+      "scrollHeight": 1215,
+      "fontsLoaded": [
+        "DM Sans Variable (100 1000)",
+        "Instrument Serif (400)",
+        "JetBrains Mono Variable (100 800)"
+      ],
+      "errors": []
+    }
+  ],
+  "lighthouse": {
+    "home": {
+      "scores": {
+        "performance": 100,
+        "accessibility": 96,
+        "bestPractices": 96,
+        "seo": 100
+      },
+      "metrics": {
+        "fcpMs": 283,
+        "lcpMs": 283,
+        "cls": 0.0013,
+        "tbtMs": 0,
+        "siMs": 283,
+        "interactiveMs": 283
+      },
+      "failedAudits": [
+        {
+          "id": "errors-in-console",
+          "title": "Browser errors were logged to the console",
+          "score": 0
+        },
+        {
+          "id": "color-contrast",
+          "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+          "score": 0
+        },
+        {
+          "id": "unused-javascript",
+          "title": "Reduce unused JavaScript",
+          "score": 0.5,
+          "displayValue": "Est savings of 237 KiB"
+        },
+        {
+          "id": "bf-cache",
+          "title": "Page prevented back/forward cache restoration",
+          "score": 0,
+          "displayValue": "2 failure reasons"
+        },
+        {
+          "id": "cache-insight",
+          "title": "Use efficient cache lifetimes",
+          "score": 0,
+          "displayValue": "Est savings of 969 KiB"
+        },
+        {
+          "id": "document-latency-insight",
+          "title": "Document request latency",
+          "score": 0.5,
+          "displayValue": "Est savings of 21 KiB"
+        },
+        {
+          "id": "forced-reflow-insight",
+          "title": "Forced reflow",
+          "score": 0
+        },
+        {
+          "id": "image-delivery-insight",
+          "title": "Improve image delivery",
+          "score": 0.5,
+          "displayValue": "Est savings of 182 KiB"
+        },
+        {
+          "id": "legacy-javascript-insight",
+          "title": "Legacy JavaScript",
+          "score": 0.5,
+          "displayValue": "Est savings of 43 KiB"
+        },
+        {
+          "id": "network-dependency-tree-insight",
+          "title": "Network dependency tree",
+          "score": 0
+        },
+        {
+          "id": "render-blocking-insight",
+          "title": "Render-blocking requests",
+          "score": 0,
+          "displayValue": "Est savings of 60 ms"
+        }
+      ]
+    }
+  },
+  "scrollTrace": {
+    "x1": {
+      "throttle": 1,
+      "frameCount": 145,
+      "avgFrameMs": 16.67,
+      "fps": 60,
+      "p95FrameMs": 16.8,
+      "maxFrameMs": 16.8,
+      "droppedFramesOver20ms": 0,
+      "longTasks": [],
+      "longTasksOver50ms": 0,
+      "activeAnimations": 0,
+      "layoutCountDelta": 0,
+      "recalcStyleCountDelta": 0,
+      "layoutDurationMsDelta": 0,
+      "scriptDurationMsDelta": 5.64,
+      "consoleMessages": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        }
+      ]
+    },
+    "x4": {
+      "throttle": 4,
+      "frameCount": 147,
+      "avgFrameMs": 16.67,
+      "fps": 60,
+      "p95FrameMs": 16.7,
+      "maxFrameMs": 16.8,
+      "droppedFramesOver20ms": 0,
+      "longTasks": [],
+      "longTasksOver50ms": 0,
+      "activeAnimations": 0,
+      "layoutCountDelta": 0,
+      "recalcStyleCountDelta": 0,
+      "layoutDurationMsDelta": 0,
+      "scriptDurationMsDelta": 17.02,
+      "consoleMessages": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+        }
+      ]
+    }
+  }
+}
