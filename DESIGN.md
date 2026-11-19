@@ -1,35 +1,34 @@
 # FIRSTSONG design
 
-The home page opens with Stage 0. Its main button moves focus to the current step on the same page. Each step gives learners one task and puts its controls beside the instructions. The session outline shows what is done and lets learners revisit any step.
+FIRSTSONG is designed as a living **Urtext music plate and playable six-string acoustic instrument**. The home page opens with a full-bleed playable six-string guitar neck above a scroll-synced five-chord morphing fretboard (`Em → Asus2 → C → G → D`) and the Stage 0 Studio Bench.
 
 ## Color and typography
 
-The tokens live in [`app/globals.css`](app/globals.css).
+All tokens live in [`app/globals.css`](app/globals.css) in OKLCH (WCAG AA verified across all routes):
 
-| Token | Value | Use |
+| Token | OKLCH | Use |
 | --- | --- | --- |
-| Paper | `#faf7f1` | Page background |
-| Card | `#fffdf9` | Lesson and reference cards |
-| Ink | `#2c241f` | Main text |
-| Muted | `#65564c` | Instructions and details |
-| Line | `#e6dbce` | Dividers and card borders |
-| Accent | `#913e2a` | Main buttons, links, and focus rings |
-| Accent hover | `#763020` | Main button hover |
-| Blush | `#f5e5d9` | Current or selected step |
-| Sand | `#f6f0e8` | Practice tools |
+| `--paper` | `oklch(0.972 0.008 90)` | Cotton engraving rag page ground |
+| `--folio` | `oklch(0.994 0.003 90)` | Elevated studio bench & chord plates |
+| `--vellum` | `oklch(0.936 0.011 90)` | Recessed fretboard & progression trays |
+| `--ink` | `oklch(0.18 0.022 256)` | Intaglio blue-black primary ink |
+| `--ink-muted` | `oklch(0.43 0.024 254)` | Annotations, captions, secondary copy |
+| `--prussian` / `--cobalt` | `oklch(0.24 0.068 256)` / `oklch(0.43 0.145 254)` | Urtext sheet-music plates, interactive fretboard, focus & active states |
+| `--cinnabar` | `oklch(0.51 0.188 28)` | Pressed fret finger dots, live audio, downbeat 1, active REC |
+| `--bronze` | `oklch(0.75 0.115 78)` | 80/20 phosphor-bronze wound strings & open-string nut halos |
+| `--verdigris` | `oklch(0.44 0.095 164)` | Verified tuned strings, kept rhythm takes, completed steps |
 
-Instrument Serif sets page and lesson titles. DM Sans sets instructions and controls. Both fonts ship with the site under their [font licenses](public/font-licenses). Body text starts at 16 pixels with 1.55 line spacing. Main instructions use at least 17 pixels at the default browser size. Title sizes grow with the viewport.
+Three open-licensed (SIL OFL 1.1) Latin-subsetted variable fonts ship locally via `next/font/local` (preloaded, zero CLS) with licenses in [`public/font-licenses/`](public/font-licenses/):
+- **Fraunces** (optical-size variable display serif, normal + italic)
+- **Hanken Grotesk** (variable UI & instruction body)
+- **Chivo Mono** (variable tabular monospace for Hz, BPM, TAB numerals, and plate indices)
 
-## Layout and controls
+## Motion and performance architecture
 
-- Keep the active step above the session outline on phones. Let recorder cards stack when they run out of room so playback and record controls fit on screen.
-- Give primary controls and navigation at least 44 pixels of height at the default browser size. Use 12-pixel control corners and 22-pixel card corners.
-- Use native buttons, inputs, and audio controls. Keep the rust focus ring visible and move focus to the new step title when the learner advances.
-- Label reference pitches and number all four beats. Give each chord diagram a text description of its strings, frets, and fingers.
-- Show an editable text caption beside each take. Use WebVTT captions and a transcript if a future lesson adds video.
+- One shared `requestAnimationFrame` ticker ([`lib/ticker.ts`](lib/ticker.ts)) drives Lenis smooth scroll and all active string/chord/metronome/meter animations, pausing automatically offscreen and when idle.
+- Plucked strings render as GPU-composited standing-wave spindles and harmonic cores (`scale3d` + `opacity` only). Scroll-synced chord morphing and reveals drive zero React re-renders during scroll.
+- `prefers-reduced-motion: reduce` disables Lenis and resolves all transitions immediately.
 
 ## Lesson data and browser storage
 
-[The curriculum](CURRICULUM.md) defines each stage, objective, practice steps, and checkpoint. A step's type selects its practice tool. The tuner and downstroke drill use Web Audio for reference sound. The timer starts on request and lets the learner control the pace.
-
-The browser records one take at a time. It saves each short recording together with its caption in local storage, which also holds the lyric, rhythm choice, and lesson progress. A 20-second cap keeps the takes short. If saving fails, the app keeps the take available until the learner leaves the step and shows a message about the failed save.
+[`CURRICULUM.md`](CURRICULUM.md) and [`lib/lessons.ts`](lib/lessons.ts) define all stages, steps, stall responses, and checkpoints. Progress, lyric lines, rhythm choices, and 20-second audio takes stay in `localStorage` under `firstsong:v1:*`.
