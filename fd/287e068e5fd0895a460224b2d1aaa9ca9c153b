@@ -1,0 +1,18 @@
+DESIGN.md
+  h_9f68edf4527855 3,7,9,11-30,34
+redesign-notes/PERF_REPORT.md
+  h_9f68edf4527855 1,3,5,7,9,11-66,70-78
+redesign-notes/after-metrics.json
+  h_9f68edf4527855 1-735
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd287e068e5fd0895a460224b2d1aaa9ca9c153b",
+  "prompts": {},
+  "humans": {
+    "h_9f68edf4527855": {
+      "author": "aduthekaddu <138025602+aduthekaddu@users.noreply.github.com>"
+    }
+  }
+}
