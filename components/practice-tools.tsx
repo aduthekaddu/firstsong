@@ -1,264 +1,359 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Check, Clock, Mic, MicOff, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { em, guitarStrings } from "../lib/chords";
+import { detectGuitarPitch } from "../lib/pitch";
 import { openAudio, pluckString, scheduleMetronomeClick } from "../lib/sound";
 import { ticker } from "../lib/ticker";
 import { ChordDiagram } from "./chord-diagram";
-import {
-  IconCheck,
-  IconClock,
-  IconPause,
-  IconPlay,
-  IconReset,
-  IconVolume,
-} from "./icons";
 
 /**
- * Reference Pitch Tuner:
- * Features a real pure-compositor standing-wave reference string inside a
- * Prussian acoustic chamber (replacing layout-thrashing animated-height bars).
+ * Studio Tuner:
+ * Combines 6 physical Karplus-Strong acoustic reference strings (E2-E4)
+ * with a live microphone YIN autocorrelation strobe pitch detector.
+ * Per-frame mic analysis updates DOM refs directly inside the shared ticker
+ * for zero React re-renders during live tuning.
  */
 export function Tuner() {
-  const audio = useRef<AudioContext | null>(null);
-  const tone = useRef<OscillatorNode | null>(null);
-  const request = useRef(0);
-  const spindleRef = useRef<SVGSVGElement | null>(null);
-  const waveRef = useRef<SVGSVGElement | null>(null);
-  const vibRef = useRef({ amp: 0, phase: 0, omega: 40 });
-  const unsubRef = useRef<(() => void) | null>(null);
+  const audioRef = useRef<AudioContext | null>(null);
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const requestRef = useRef(0);
+
+  // Live mic tuner refs (mutated imperatively at 60fps, zero React re-renders)
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micCtxRef = useRef<AudioContext | null>(null);
+  const micUnsubRef = useRef<(() => void) | null>(null);
+  const needleRef = useRef<HTMLDivElement | null>(null);
+  const strobeNoteRef = useRef<HTMLSpanElement | null>(null);
+  const strobeHzRef = useRef<HTMLSpanElement | null>(null);
+  const strobeCentsRef = useRef<HTMLSpanElement | null>(null);
+  const strobeGuideRef = useRef<HTMLSpanElement | null>(null);
+  const strobeTrackRef = useRef<HTMLDivElement | null>(null);
 
   const [playing, setPlaying] = useState("");
   const [heard, setHeard] = useState<string[]>([]);
-  const [activeNote, setActiveNote] = useState<(typeof guitarStrings)[number] | null>(null);
+  const [micActive, setMicActive] = useState(false);
+  const [micError, setMicError] = useState("");
   const [message, setMessage] = useState("");
 
-  const startWave = (hz: number) => {
-    vibRef.current = {
-      amp: 1,
-      phase: 0,
-      omega: Math.max(22, Math.min(48, 22 + (hz / 330) * 26)) * Math.PI * 2,
-    };
-    if (unsubRef.current) return;
-    if (spindleRef.current) spindleRef.current.style.willChange = "transform, opacity";
-    if (waveRef.current) waveRef.current.style.willChange = "transform, opacity";
-
-    unsubRef.current = ticker.subscribe((_now, dt) => {
-      const v = vibRef.current;
-      v.phase += v.omega * dt;
-      v.amp *= Math.exp(-1.55 * dt);
-
-      if (v.amp <= 0.015) {
-        v.amp = 0;
-        if (spindleRef.current) {
-          spindleRef.current.style.transform = "scale3d(1, 0, 1)";
-          spindleRef.current.style.opacity = "0";
-          spindleRef.current.style.willChange = "auto";
-        }
-        if (waveRef.current) {
-          waveRef.current.style.transform = "scale3d(1, 0, 1)";
-          waveRef.current.style.opacity = "0";
-          waveRef.current.style.willChange = "auto";
-        }
-        if (unsubRef.current) {
-          unsubRef.current();
-          unsubRef.current = null;
-        }
-        return;
-      }
-
-      const osc = Math.sin(v.phase) * v.amp;
-      if (spindleRef.current) {
-        spindleRef.current.style.transform = `scale3d(1, ${v.amp.toFixed(3)}, 1)`;
-        spindleRef.current.style.opacity = Math.min(1, v.amp * 1.1).toFixed(3);
-      }
-      if (waveRef.current) {
-        waveRef.current.style.transform = `scale3d(1, ${osc.toFixed(3)}, 1)`;
-        waveRef.current.style.opacity = Math.min(1, v.amp * 1.4).toFixed(3);
-      }
-    });
-  };
+  function stopMic() {
+    if (micUnsubRef.current) {
+      micUnsubRef.current();
+      micUnsubRef.current = null;
+    }
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    if (micCtxRef.current) {
+      void micCtxRef.current.close();
+      micCtxRef.current = null;
+    }
+    setMicActive(false);
+    if (needleRef.current) {
+      needleRef.current.style.transform = "translate3d(0px, 0, 0)";
+      needleRef.current.style.opacity = "0.35";
+    }
+  }
 
   useEffect(() => {
     return () => {
-      request.current++;
-      if (unsubRef.current) {
-        unsubRef.current();
-        unsubRef.current = null;
+      requestRef.current++;
+      stopMic();
+      try {
+        activeSourceRef.current?.stop();
+      } catch {
+        // Already ended
       }
     };
   }, []);
 
-  async function play(note: (typeof guitarStrings)[number]) {
-    const id = ++request.current;
-    startWave(note.hz);
-    setActiveNote(note);
+  async function toggleMic() {
+    if (micActive) {
+      stopMic();
+      setMessage("Microphone tuner paused.");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicError("Microphone tuning requires HTTPS or localhost. Use the six reference strings below.");
+      return;
+    }
+
+    setMicError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+      });
+      const ctx = new AudioContext();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+
+      micStreamRef.current = stream;
+      micCtxRef.current = ctx;
+      setMicActive(true);
+      setMessage("Listening to your guitar. Pluck one open string at a time.");
+
+      const timeBuf = new Float32Array(analyser.fftSize);
+      const diffScratch = new Float32Array(analyser.fftSize >> 1);
+      let smoothedCents = 0;
+      let holdFrames = 0;
+
+      micUnsubRef.current = ticker.subscribe(() => {
+        analyser.getFloatTimeDomainData(timeBuf);
+        const reading = detectGuitarPitch(timeBuf, ctx.sampleRate, diffScratch);
+
+        if (reading) {
+          holdFrames = 24;
+          const clampedCents = Math.max(-50, Math.min(50, reading.nearestStringCents));
+          smoothedCents = smoothedCents * 0.72 + clampedCents * 0.28;
+          const inTune = Math.abs(smoothedCents) <= 4.5;
+          const target = guitarStrings[reading.nearestStringIndex];
+
+          if (strobeNoteRef.current) {
+            strobeNoteRef.current.textContent = target.name;
+            strobeNoteRef.current.style.color = inTune ? "var(--lock)" : "var(--ink)";
+          }
+          if (strobeHzRef.current) {
+            strobeHzRef.current.textContent = `${reading.hz.toFixed(1)} Hz`;
+          }
+          if (strobeCentsRef.current) {
+            const sign = smoothedCents > 0.5 ? "+" : "";
+            strobeCentsRef.current.textContent = `${sign}${Math.round(smoothedCents)}¢`;
+            strobeCentsRef.current.style.color = inTune ? "var(--lock)" : "var(--ink-soft)";
+          }
+          if (strobeGuideRef.current) {
+            strobeGuideRef.current.textContent = inTune
+              ? `${target.label} is in tune`
+              : smoothedCents < 0
+                ? `${target.label} is flat · tighten peg slowly`
+                : `${target.label} is sharp · loosen peg slowly`;
+            strobeGuideRef.current.style.color = inTune ? "var(--lock)" : "var(--muted)";
+          }
+
+          if (needleRef.current && strobeTrackRef.current) {
+            const halfW = (strobeTrackRef.current.clientWidth - 4) / 2;
+            const offsetPx = (smoothedCents / 50) * halfW;
+            needleRef.current.style.transform = `translate3d(${offsetPx.toFixed(1)}px, 0, 0)`;
+            needleRef.current.style.opacity = "1";
+            needleRef.current.style.backgroundColor = inTune ? "var(--lock)" : "var(--accent)";
+          }
+        } else if (holdFrames > 0) {
+          holdFrames--;
+          if (holdFrames === 0 && needleRef.current) {
+            needleRef.current.style.opacity = "0.35";
+          }
+        }
+      });
+    } catch (error) {
+      stopMic();
+      setMicError(
+        error instanceof DOMException && error.name === "NotAllowedError"
+          ? "Microphone access was declined. Tune by ear with the six reference strings below."
+          : "Microphone could not start. Tune by ear with the six reference strings below."
+      );
+    }
+  }
+
+  async function playReference(note: (typeof guitarStrings)[number], index: number) {
+    const id = ++requestRef.current;
     setPlaying(note.name);
     setHeard((prev) => (prev.includes(note.name) ? prev : [...prev, note.name]));
 
     try {
-      const context = await openAudio(audio.current);
-      if (id !== request.current) return;
-      audio.current = context;
+      const ctx = await openAudio(audioRef.current);
+      if (id !== requestRef.current) return;
+      audioRef.current = ctx;
       try {
-        tone.current?.stop();
+        activeSourceRef.current?.stop();
       } catch {
         // Already stopped
       }
-      const nextTone = pluckString({
-        context,
+      const source = pluckString({
+        context: ctx,
         hz: note.hz,
-        start: context.currentTime,
-        duration: 2.5,
-        volume: 0.25,
+        duration: 2.6,
+        volume: 0.36,
+        brightness: index < 3 ? 0.48 : 0.64,
       });
-      tone.current = nextTone;
-      setMessage(`Sounding ${note.label} (${note.name}) — ${note.hz.toFixed(2)} Hz`);
-      nextTone.onended = () => {
-        if (id === request.current) {
-          tone.current = null;
+      activeSourceRef.current = source;
+      setMessage(`Reference pitch: ${note.label} (${note.name}, ${note.hz.toFixed(2)} Hz)`);
+      source.onended = () => {
+        if (id === requestRef.current) {
+          activeSourceRef.current = null;
           setPlaying("");
         }
       };
     } catch {
-      if (id === request.current) {
-        setMessage("Your browser could not play the reference tone.");
+      if (id === requestRef.current) {
+        setMessage("Your browser could not play audio.");
       }
     }
   }
 
   return (
-    <div className="rounded-[var(--radius-plate)] border border-[var(--rule-mid)] bg-[var(--paper)] p-5 md:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <IconVolume size={15} className="text-[var(--cobalt)]" />
-          <h4 className="font-mono-score text-[11px] font-medium uppercase text-[var(--ink)]">
-            Six-String Reference Pitch
-          </h4>
+    <div className="space-y-6">
+      {/* Live Microphone Pitch Detector Strip (borderless hairline architecture) */}
+      <div className="border-y border-[var(--line)] py-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <p className="text-[15px] font-medium text-[var(--ink)]">
+              Live microphone tuner
+            </p>
+            <p className="text-[13px] text-[var(--muted)]">
+              <span ref={strobeGuideRef}>
+                {micActive
+                  ? "Pluck one open string clearly near your mic"
+                  : "Optional pitch needle, or tune directly by ear below"}
+              </span>
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void toggleMic()}
+            className={micActive ? "btn-primary" : "btn-secondary"}
+            data-tone={micActive ? "accent" : undefined}
+          >
+            {micActive ? (
+              <MicOff size={15} strokeWidth={1.5} aria-hidden="true" />
+            ) : (
+              <Mic size={15} strokeWidth={1.5} aria-hidden="true" />
+            )}
+            <span>{micActive ? "Stop mic tuner" : "Listen with mic"}</span>
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="font-mono-score text-[10px] uppercase text-[var(--ink-muted)]">
+
+        {micActive && (
+          <div className="mt-5 space-y-3">
+            <div className="flex items-baseline justify-between gap-4">
+              <span
+                ref={strobeNoteRef}
+                className="font-mono-num text-[32px] leading-none font-medium tracking-[-0.03em] text-[var(--ink)]"
+              >
+                --
+              </span>
+              <div className="font-mono-num flex items-baseline gap-4 text-[14px] text-[var(--muted)]">
+                <span ref={strobeHzRef}>0.0 Hz</span>
+                <span ref={strobeCentsRef} className="min-w-[44px] text-right text-[var(--ink-soft)]">
+                  0¢
+                </span>
+              </div>
+            </div>
+
+            {/* Precision Flat / In-Tune / Sharp Track */}
+            <div
+              ref={strobeTrackRef}
+              aria-hidden="true"
+              className="relative flex h-8 items-center justify-center bg-[var(--surface)]"
+            >
+              <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-[var(--line-strong)]" />
+              <div className="absolute top-1.5 bottom-1.5 left-1/2 w-px -translate-x-1/2 bg-[var(--lock)]" />
+              <div
+                ref={needleRef}
+                className="h-5 w-1 rounded-full bg-[var(--accent)] opacity-35 transition-colors duration-100"
+                style={{ transform: "translate3d(0px, 0, 0)" }}
+              />
+            </div>
+
+            <div className="font-mono-num flex justify-between text-[12px] text-[var(--muted)]" aria-hidden="true">
+              <span>-50¢ flat</span>
+              <span>0¢ in tune</span>
+              <span>+50¢ sharp</span>
+            </div>
+          </div>
+        )}
+
+        {micError && (
+          <p className="mt-3 text-[13px] text-[var(--accent)]" role="status">
+            {micError}
+          </p>
+        )}
+      </div>
+
+      {/* Six Acoustic Reference Strings (E2 -> E4) */}
+      <div className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[14px] font-medium text-[var(--ink)]">
+            Reference strings (thickest to thinnest)
+          </p>
+          <span className="font-mono-num text-[13px] text-[var(--muted)]">
             {heard.length}/6 checked
           </span>
-          <span className="font-mono-score rounded-[2px] bg-[var(--prussian)] px-2.5 py-1 text-[11px] text-[var(--prussian-ink)]">
-            {activeNote ? `${activeNote.name} · ${activeNote.hz.toFixed(2)} HZ` : "A4 = 440.00 HZ"}
-          </span>
         </div>
-      </div>
 
-      {/* Prussian Resonance Chamber with live standing-wave pitch string */}
-      <div className="surface-prussian relative mb-5 flex h-16 items-center overflow-hidden rounded-[var(--radius-plate)] border border-[var(--prussian-deep)] bg-[var(--prussian)] px-5">
-        {/* Resting bronze string */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-x-5 top-1/2 h-[2px] -translate-y-1/2 bg-[var(--bronze)]/70"
-        />
-        {/* Standing-wave spindle envelope (pure scale3d) */}
-        <svg
-          ref={spindleRef}
-          aria-hidden="true"
-          viewBox="0 0 1000 56"
-          preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-5 top-1/2 h-14 w-[calc(100%-2.5rem)] -translate-y-1/2"
-          style={{ transform: "scale3d(1, 0, 1)", opacity: 0 }}
-        >
-          <path
-            d="M 0 28 Q 500 2 1000 28 Q 500 54 0 28 Z"
-            fill="rgba(229, 130, 82, 0.34)"
-          />
-        </svg>
-        {/* Oscillating core string */}
-        <svg
-          ref={waveRef}
-          aria-hidden="true"
-          viewBox="0 0 1000 56"
-          preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-5 top-1/2 h-14 w-[calc(100%-2.5rem)] -translate-y-1/2"
-          style={{ transform: "scale3d(1, 0, 1)", opacity: 0 }}
-        >
-          <path
-            d="M 0 28 Q 500 4 1000 28"
-            fill="none"
-            stroke="#f59a6e"
-            strokeWidth="2.4"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
-
-        <div className="relative z-10 flex w-full items-center justify-between">
-          <span className="font-mono-score rounded-[2px] bg-[var(--prussian)]/90 px-2 py-0.5 text-[10px] uppercase text-[var(--prussian-muted)]">
-            {playing
-              ? `Resonating · ${activeNote?.label}`
-              : "Press strings 01 → 06 to sound reference pitch"}
-          </span>
-          {activeNote && (
-            <span className="font-mono-score rounded-[2px] bg-[var(--prussian)]/90 px-2 py-0.5 text-[10px] text-[var(--bronze)]">
-              {activeNote.hz.toFixed(2)} Hz
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 6 Tuning Peg Pads */}
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-6">
-        {guitarStrings.map((note, idx) => {
-          const isPlaying = playing === note.name;
-          const isHeard = heard.includes(note.name);
-          return (
-            <button
-              key={note.name}
-              type="button"
-              data-playing={isPlaying}
-              onClick={() => void play(note)}
-              className={`tactile group flex min-h-[88px] cursor-pointer flex-col justify-between rounded-[var(--radius-control)] border p-3 text-left ${
-                isPlaying
-                  ? "border-[var(--cinnabar)] bg-[var(--cinnabar)] text-[var(--folio)]"
-                  : "border-[var(--rule-mid)] bg-[var(--folio)] text-[var(--ink)] hover:border-[var(--prussian)]"
-              }`}
-            >
-              <div className="flex w-full items-center justify-between">
-                <span
-                  className={`font-mono-score text-[10px] ${
-                    isPlaying ? "text-[var(--folio)]/85" : "text-[var(--ink-muted)]"
-                  }`}
-                >
-                  0{idx + 1}
-                </span>
-                {isHeard && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {guitarStrings.map((note, idx) => {
+            const isPlaying = playing === note.name;
+            const isHeard = heard.includes(note.name);
+            return (
+              <button
+                key={note.name}
+                type="button"
+                data-playing={isPlaying}
+                onClick={() => void playReference(note, idx)}
+                className={`group flex min-h-[84px] cursor-pointer flex-col justify-between rounded-[var(--r-sm)] border p-3 text-left transition-colors duration-150 ${
+                  isPlaying
+                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                    : "border-[var(--line-strong)] bg-transparent text-[var(--ink)] hover:border-[var(--ink)] hover:bg-[var(--surface)]"
+                }`}
+              >
+                <div className="flex w-full items-center justify-between">
                   <span
-                    className={`h-2 w-2 rounded-full ${
-                      isPlaying ? "bg-[var(--folio)]" : "bg-[var(--verdigris)]"
+                    className={`font-mono-num text-[12px] ${
+                      isPlaying ? "opacity-85" : "text-[var(--muted)]"
                     }`}
-                    aria-hidden="true"
-                  />
-                )}
-              </div>
+                  >
+                    0{idx + 1}
+                  </span>
+                  {isHeard ? (
+                    <Check
+                      size={13}
+                      strokeWidth={1.75}
+                      aria-hidden="true"
+                      className={isPlaying ? "text-[var(--accent-ink)]" : "text-[var(--lock)]"}
+                    />
+                  ) : (
+                    <Volume2
+                      size={13}
+                      strokeWidth={1.5}
+                      aria-hidden="true"
+                      className={isPlaying ? "text-[var(--accent-ink)]" : "text-[var(--muted)] opacity-60"}
+                    />
+                  )}
+                </div>
 
-              <div>
-                <strong className="block text-sm font-semibold leading-tight">
-                  {note.label}
-                </strong>
-                <span
-                  className={`font-mono-score mt-0.5 block text-[11px] ${
-                    isPlaying ? "text-[var(--folio)]/90" : "text-[var(--ink-muted)]"
-                  }`}
-                >
-                  {note.name}
-                </span>
-              </div>
-            </button>
-          );
-        })}
+                <div>
+                  <span className="block text-[15px] font-medium leading-tight">
+                    {note.label}
+                  </span>
+                  <span
+                    className={`font-mono-num mt-0.5 block text-[12px] ${
+                      isPlaying ? "opacity-85" : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {note.name} · {Math.round(note.hz)} Hz
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-[13px] text-[var(--muted)]" role="status">
+          {message || "Start with Low E (01) and work toward High E (06)."}
+        </p>
       </div>
-
-      <p className="font-mono-score mt-3.5 text-[11px] text-[var(--ink-muted)]" role="status">
-        {message || "Start with the thickest string (01 · Low E) and tune up toward High E (06)."}
-      </p>
     </div>
   );
 }
 
-function BeatGrid({
+function BeatStrip({
   active = 0,
   filled = 0,
   pulseKey = 0,
@@ -268,28 +363,25 @@ function BeatGrid({
   pulseKey?: number;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-2.5" aria-hidden="true">
+    <div className="grid grid-cols-4 gap-2" aria-hidden="true">
       {[1, 2, 3, 4].map((beat) => {
         const isCurrent = beat === active;
-        const lit = isCurrent || beat <= filled;
+        const isLit = isCurrent || beat <= filled;
         const isDownbeat = beat === 1;
         return (
           <div
             key={`${beat}-${isCurrent ? pulseKey : 0}`}
-            className={`flex h-20 flex-col items-center justify-center rounded-[var(--radius-plate)] border transition-colors duration-150 ${
-              isCurrent ? "beat-hit" : ""
+            className={`flex h-20 flex-col items-center justify-center rounded-[var(--r-sm)] border transition-colors duration-150 ${
+              isCurrent ? "beat-pulse" : ""
             } ${
-              lit
+              isLit
                 ? isDownbeat
-                  ? "border-[var(--cinnabar)] bg-[var(--cinnabar)] text-[var(--folio)]"
-                  : "border-[var(--prussian)] bg-[var(--prussian)] text-[var(--prussian-ink)]"
-                : "border-[var(--rule-mid)] bg-[var(--folio)] text-[var(--ink-muted)]"
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
+                  : "border-[var(--ink)] bg-[var(--ink)] text-[var(--bg)]"
+                : "border-[var(--line-strong)] bg-transparent text-[var(--muted)]"
             }`}
           >
-            <span className="font-display text-3xl leading-none">{beat}</span>
-            <span className="font-mono-score mt-1 text-[9px] uppercase opacity-80">
-              {isDownbeat ? "One" : "Beat"}
-            </span>
+            <span className="font-mono-num text-[26px] leading-none font-normal">{beat}</span>
           </div>
         );
       })}
@@ -298,62 +390,56 @@ function BeatGrid({
 }
 
 export function TapTrainer() {
-  const taps = useRef<number[]>([]);
+  const tapsRef = useRef<number[]>([]);
   const [count, setCount] = useState(0);
   const [tempo, setTempo] = useState(0);
   const [pulseKey, setPulseKey] = useState(0);
 
   function tap() {
-    if (taps.current.length === 4) taps.current = [];
+    if (tapsRef.current.length === 4) tapsRef.current = [];
     const now = performance.now();
-    taps.current.push(now);
-    const nextCount = taps.current.length;
+    tapsRef.current.push(now);
+    const nextCount = tapsRef.current.length;
     setCount(nextCount);
     setPulseKey((k) => k + 1);
     if (nextCount === 4) {
-      setTempo(Math.round(180_000 / Math.max(1, now - taps.current[0])));
+      setTempo(Math.round(180_000 / Math.max(1, now - tapsRef.current[0])));
     }
   }
 
   return (
-    <div className="rounded-[var(--radius-plate)] border border-[var(--rule-mid)] bg-[var(--paper)] p-5 md:p-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <IconClock size={15} className="text-[var(--cobalt)]" />
-          <h4 className="font-mono-score text-[11px] font-medium uppercase text-[var(--ink)]">
-            Four-Beat Pulse Pad
-          </h4>
-        </div>
-        <span className="font-mono-score rounded-[2px] bg-[var(--prussian)] px-2.5 py-1 text-[11px] text-[var(--prussian-ink)]">
-          {count === 4 ? `${tempo} BPM` : `${count} / 4 BEATS`}
+    <div className="space-y-4 border-y border-[var(--line)] py-6">
+      <div className="flex items-baseline justify-between gap-4">
+        <p className="text-[15px] font-medium text-[var(--ink)]">Four-beat pulse</p>
+        <span
+          key={count === 4 ? `bpm-${tempo}` : `beat-${count}`}
+          className="roll-enter font-mono-num text-[14px] text-[var(--ink)]"
+        >
+          {count === 4 ? `${tempo} BPM` : `${count} / 4`}
         </span>
       </div>
 
-      <BeatGrid active={count} filled={count} pulseKey={pulseKey} />
+      <BeatStrip active={count} filled={count} pulseKey={pulseKey} />
 
-      <div className="mt-4 flex flex-wrap items-center gap-2.5">
-        <button
-          type="button"
-          onClick={tap}
-          className="tactile min-h-12 flex-1 cursor-pointer rounded-[var(--radius-control)] border border-[var(--prussian)] bg-[var(--prussian)] px-5 py-3 text-sm font-medium text-[var(--prussian-ink)] hover:border-[var(--cobalt)] hover:bg-[var(--cobalt)]"
-        >
-          Tap the beat (or press Space)
+      <div className="flex flex-wrap items-center gap-3 pt-1">
+        <button type="button" onClick={tap} className="btn-primary flex-1">
+          <span>Tap beat (or press Space)</span>
         </button>
         <button
           type="button"
           onClick={() => {
-            taps.current = [];
+            tapsRef.current = [];
             setCount(0);
             setTempo(0);
           }}
-          className="tactile inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-mid)] bg-[var(--folio)] px-4 py-3 text-sm text-[var(--ink)] hover:border-[var(--prussian)]"
+          className="btn-secondary"
         >
-          <IconReset size={14} />
+          <RotateCcw size={14} strokeWidth={1.5} aria-hidden="true" />
           <span>Reset</span>
         </button>
       </div>
 
-      <p className="font-mono-score mt-3.5 text-[11px] text-[var(--ink-muted)]" role="status">
+      <p className="text-[13px] text-[var(--muted)]" role="status">
         {count === 4
           ? `Four taps at about ${tempo} beats per minute. Tap again to count a fresh bar.`
           : `${count} of 4 beats tapped.`}
@@ -364,25 +450,20 @@ export function TapTrainer() {
 
 export function EmChord() {
   return (
-    <div className="grid items-center gap-6 rounded-[var(--radius-plate)] border border-[var(--rule-mid)] bg-[var(--paper)] p-5 sm:grid-cols-[1fr_auto] md:p-6">
+    <div className="grid items-center gap-8 border-y border-[var(--line)] py-6 sm:grid-cols-[1fr_auto]">
       <div className="space-y-3">
-        <p className="font-mono-score text-[11px] font-medium uppercase text-[var(--cobalt)]">
-          Chord Plate 01 · Em (E minor)
+        <p className="type-h3 text-[var(--ink)]">
+          Em (E minor)
         </p>
-        <p className="font-display text-2xl leading-snug text-[var(--ink)]">
-          Two fingers on the second fret. Four strings ring wide open.
+        <p className="max-w-[46ch] text-[15px] leading-relaxed text-[var(--ink-soft)]">
+          Press finger 2 (middle) on the second fret of the A string and finger 3 (ring) directly underneath it on the second fret of the D string. Let the other four strings ring open.
         </p>
-        <p className="max-w-md text-sm leading-relaxed text-[var(--ink-soft)]">
-          The thickest string sits on the left. Bronze circles mean let that string ring open. Press{" "}
-          <strong className="font-semibold text-[var(--ink)]">2</strong> (middle finger) on the A string and{" "}
-          <strong className="font-semibold text-[var(--ink)]">3</strong> (ring finger) right underneath it on D.
-        </p>
-        <p className="font-mono-score text-[11px] text-[var(--ink-muted)]">
-          Click any string to audition it, or press Strum Em.
+        <p className="text-[13px] text-[var(--muted)]">
+          Click any string on the diagram to hear it, or strum all six together.
         </p>
       </div>
 
-      <div className="flex justify-center rounded-[var(--radius-plate)] border border-[var(--rule)] bg-[var(--folio)] px-6 py-5">
+      <div className="flex justify-center">
         <ChordDiagram chord={em} showStrum />
       </div>
     </div>
@@ -393,48 +474,45 @@ type DrillState =
   | { kind: "ready" | "starting" | "done" }
   | { kind: "playing"; beat: number };
 
-/**
- * Week 1 Downstroke Trainer:
- * Combines 40-90 BPM tempo selection, crisp Web Audio woodblock clicks,
- * 4-beat pads, and a physical swinging GPU-composited metronome pendulum!
- */
+const TEMPOS = [40, 50, 60, 70, 80, 90] as const;
+
 export function DownstrokeTrainer() {
-  const [bpm, setBpm] = useState(60);
+  const [bpm, setBpm] = useState<number>(60);
   const [state, setState] = useState<DrillState>({ kind: "ready" });
   const [message, setMessage] = useState("");
   const [pulseKey, setPulseKey] = useState(0);
-  const audio = useRef<AudioContext | null>(null);
-  const timeouts = useRef<number[]>([]);
-  const tones = useRef<OscillatorNode[]>([]);
-  const run = useRef(0);
+
+  const audioRef = useRef<AudioContext | null>(null);
+  const timeoutsRef = useRef<number[]>([]);
+  const tonesRef = useRef<OscillatorNode[]>([]);
+  const runRef = useRef(0);
   const pendulumRef = useRef<HTMLDivElement | null>(null);
-  const unsubPendulum = useRef<(() => void) | null>(null);
+  const unsubPendulumRef = useRef<(() => void) | null>(null);
 
   const locked = state.kind === "playing" || state.kind === "starting";
 
   function stopPendulum() {
-    if (unsubPendulum.current) {
-      unsubPendulum.current();
-      unsubPendulum.current = null;
+    if (unsubPendulumRef.current) {
+      unsubPendulumRef.current();
+      unsubPendulumRef.current = null;
     }
     if (pendulumRef.current) {
       pendulumRef.current.style.transform = "rotate(0deg)";
-      pendulumRef.current.style.willChange = "auto";
     }
   }
 
   function cancel() {
-    run.current++;
-    timeouts.current.forEach((timeout) => window.clearTimeout(timeout));
-    tones.current.forEach((t) => {
+    runRef.current++;
+    timeoutsRef.current.forEach((t) => window.clearTimeout(t));
+    tonesRef.current.forEach((o) => {
       try {
-        t.stop();
+        o.stop();
       } catch {
-        // Already ended
+        // Already stopped
       }
     });
-    timeouts.current = [];
-    tones.current = [];
+    timeoutsRef.current = [];
+    tonesRef.current = [];
     stopPendulum();
   }
 
@@ -442,28 +520,26 @@ export function DownstrokeTrainer() {
 
   async function start() {
     if (locked) return;
-    const id = ++run.current;
+    const id = ++runRef.current;
     const interval = 60_000 / bpm;
     setMessage("");
     setState({ kind: "starting" });
 
-    let context: AudioContext | null = null;
+    let ctx: AudioContext | null = null;
     try {
-      context = await openAudio(audio.current);
+      ctx = await openAudio(audioRef.current);
     } catch {
-      if (id === run.current) {
-        setMessage("Sound is unavailable. Follow the swinging pendulum and four numbered beats.");
+      if (id === runRef.current) {
+        setMessage("Sound is unavailable. Follow the pendulum and four numbered beats.");
       }
     }
-    if (id !== run.current) return;
-    audio.current = context;
+    if (id !== runRef.current) return;
+    audioRef.current = ctx;
 
     const startPerf = performance.now() + 90;
-    const startAt = context ? context.currentTime + 0.09 : 0;
+    const startAt = ctx ? ctx.currentTime + 0.09 : 0;
 
-    // Physical metronome pendulum synced to exact BPM in the shared RAF ticker
-    if (pendulumRef.current) pendulumRef.current.style.willChange = "transform";
-    unsubPendulum.current = ticker.subscribe((now) => {
+    unsubPendulumRef.current = ticker.subscribe((now) => {
       if (!pendulumRef.current) return;
       const elapsedMs = Math.max(0, now - startPerf);
       const beatPhase = (elapsedMs / interval) * Math.PI;
@@ -473,17 +549,17 @@ export function DownstrokeTrainer() {
 
     for (let beat = 1; beat <= 4; beat++) {
       const delay = (beat - 1) * interval;
-      if (context) {
-        tones.current.push(
+      if (ctx) {
+        tonesRef.current.push(
           scheduleMetronomeClick({
-            context,
+            context: ctx,
             start: startAt + delay / 1000,
             accent: beat === 1,
-            volume: 0.22,
+            volume: 0.24,
           })
         );
       }
-      timeouts.current.push(
+      timeoutsRef.current.push(
         window.setTimeout(() => {
           setPulseKey((k) => k + 1);
           setState({ kind: "playing", beat });
@@ -491,10 +567,10 @@ export function DownstrokeTrainer() {
       );
     }
 
-    timeouts.current.push(
+    timeoutsRef.current.push(
       window.setTimeout(() => {
-        timeouts.current = [];
-        tones.current = [];
+        timeoutsRef.current = [];
+        tonesRef.current = [];
         stopPendulum();
         setState({ kind: "done" });
       }, 90 + interval * 4)
@@ -502,73 +578,63 @@ export function DownstrokeTrainer() {
   }
 
   return (
-    <div className="rounded-[var(--radius-plate)] border border-[var(--rule-mid)] bg-[var(--paper)] p-5 md:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <IconClock size={15} className="text-[var(--cobalt)]" />
-          <h4 className="font-mono-score text-[11px] font-medium uppercase text-[var(--ink)]">
-            Downstroke Metronome
-          </h4>
-        </div>
+    <div className="space-y-5 border-b border-[var(--line)] pb-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="text-[15px] font-medium text-[var(--ink)]">
+          Downstroke metronome
+        </p>
 
         <div
-          className="inline-flex flex-wrap items-center rounded-[var(--radius-control)] border border-[var(--rule-mid)] bg-[var(--folio)] p-0.5"
+          className="inline-flex flex-wrap items-center gap-1"
           role="group"
           aria-label="Tempo in beats per minute"
         >
-          {[40, 50, 60, 70, 80, 90].map((tempo) => (
+          {TEMPOS.map((tempo) => (
             <button
               key={tempo}
               type="button"
               disabled={locked}
               onClick={() => setBpm(tempo)}
-              className={`font-mono-score min-h-8 cursor-pointer rounded-[2px] px-2.5 py-1 text-[11px] transition-colors disabled:opacity-45 ${
+              aria-pressed={bpm === tempo}
+              className={`font-mono-num min-h-11 min-w-11 cursor-pointer rounded-[var(--r-sm)] border px-2.5 text-[13px] transition-colors duration-150 disabled:opacity-40 ${
                 bpm === tempo
-                  ? "bg-[var(--prussian)] font-semibold text-[var(--prussian-ink)]"
-                  : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                  ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--bg)]"
+                  : "border-[var(--line)] text-[var(--ink-soft)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
               }`}
             >
               {tempo}
             </button>
           ))}
-          <span className="font-mono-score border-l border-[var(--rule)] px-2.5 text-[10px] text-[var(--ink-muted)]">
-            BPM
-          </span>
+          <span className="font-mono-num pl-1.5 text-[12px] text-[var(--muted)]">BPM</span>
         </div>
       </div>
 
-      {/* Swinging Physical Metronome Arc */}
-      <div className="mb-5 grid items-center gap-5 sm:grid-cols-[136px_1fr]">
+      {/* Architectural Pendulum + Four Beat Strip */}
+      <div className="grid items-center gap-5 sm:grid-cols-[124px_1fr]">
         <div
           aria-hidden="true"
-          className="surface-prussian relative flex h-28 items-end justify-center overflow-hidden rounded-[var(--radius-plate)] bg-[var(--prussian)] pb-3"
+          className="relative flex h-24 items-end justify-center overflow-hidden rounded-[var(--r-sm)] bg-[var(--surface)] pb-2.5"
         >
-          {/* Engraved degree scale ticks */}
-          <svg
-            viewBox="0 0 120 88"
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
+          <svg viewBox="0 0 120 84" className="pointer-events-none absolute inset-0 h-full w-full">
             <path
-              d="M 22 46 A 48 48 0 0 1 98 46"
+              d="M 22 44 A 46 46 0 0 1 98 44"
               fill="none"
-              stroke="rgba(245,243,236,0.18)"
+              stroke="var(--line-strong)"
               strokeWidth="1"
-              strokeDasharray="2 4"
             />
-            <line x1="60" y1="14" x2="60" y2="24" stroke="var(--bronze)" strokeWidth="1.5" />
+            <line x1="60" y1="12" x2="60" y2="20" stroke="var(--accent)" strokeWidth="1.5" />
           </svg>
-          {/* Pivoting brass pendulum arm (pure GPU rotate) */}
           <div
             ref={pendulumRef}
-            className="relative h-20 w-[2px] origin-bottom bg-[var(--bronze)]"
+            className="relative h-[68px] w-[1.5px] origin-bottom bg-[var(--ink)]"
             style={{ transform: "rotate(0deg)" }}
           >
-            <span className="absolute left-1/2 top-3 h-3.5 w-3.5 -translate-x-1/2 rounded-full border border-[var(--folio)] bg-[var(--cinnabar)]" />
+            <span className="absolute left-1/2 top-2.5 h-3 w-3 -translate-x-1/2 rounded-full bg-[var(--accent)]" />
           </div>
-          <span className="absolute bottom-2 h-2.5 w-2.5 rounded-full bg-[var(--folio)]" />
+          <span className="absolute bottom-2 h-2 w-2 rounded-full bg-[var(--ink)]" />
         </div>
 
-        <BeatGrid
+        <BeatStrip
           active={state.kind === "playing" ? state.beat : 0}
           filled={state.kind === "done" ? 4 : 0}
           pulseKey={pulseKey}
@@ -585,19 +651,16 @@ export function DownstrokeTrainer() {
             void start();
           }
         }}
-        className={`tactile min-h-12 w-full cursor-pointer rounded-[var(--radius-control)] border px-5 py-3 text-sm font-medium ${
-          locked
-            ? "border-[var(--cinnabar)] bg-[var(--cinnabar)] text-[var(--folio)]"
-            : "border-[var(--prussian)] bg-[var(--prussian)] text-[var(--prussian-ink)] hover:border-[var(--cobalt)] hover:bg-[var(--cobalt)]"
-        }`}
+        data-tone={locked ? "accent" : undefined}
+        className="btn-primary w-full"
       >
-        {locked ? "Stop four beats" : `Play four slow beats (${bpm} BPM)`}
+        <span>{locked ? "Stop four beats" : `Play four slow beats (${bpm} BPM)`}</span>
       </button>
 
-      <p className="font-mono-score mt-3.5 text-[11px] text-[var(--ink-muted)]" role="status">
+      <p className="text-[13px] text-[var(--muted)]" role="status">
         {state.kind === "done"
-          ? "Four beats complete. Shake out your fretting hand before repeating."
-          : message || "Brush down across all six strings once on every beat."}
+          ? "Four beats finished. Relax your fretting hand before repeating."
+          : message || "Brush down across all six strings once on each beat."}
       </p>
     </div>
   );
@@ -612,6 +675,11 @@ export function PracticeTimer({ minutes }: { minutes: number }) {
   const duration = minutes * 60;
   const [timer, setTimer] = useState<TimerState>({ kind: "paused", remaining: duration });
   const [now, setNow] = useState(0);
+
+  // Reset cleanly when switching steps with different target durations
+  useEffect(() => {
+    setTimer({ kind: "paused", remaining: minutes * 60 });
+  }, [minutes]);
 
   const remaining =
     timer.kind === "running"
@@ -646,52 +714,45 @@ export function PracticeTimer({ minutes }: { minutes: number }) {
   }
 
   return (
-    <div className="space-y-2.5 border-y border-[var(--rule)] py-4">
+    <div className="space-y-3 pt-2">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <IconClock size={15} className="text-[var(--ink-muted)]" />
-          <span className="font-mono-score text-[11px] uppercase text-[var(--ink-muted)]">
-            Practice Timer
-          </span>
+          <Clock size={15} strokeWidth={1.5} className="text-[var(--muted)]" aria-hidden="true" />
+          <span className="text-[14px] text-[var(--muted)]">Practice timer</span>
           <span
-            className="font-mono-score rounded-[2px] bg-[var(--prussian)] px-2.5 py-0.5 text-sm font-medium text-[var(--prussian-ink)]"
+            className="font-mono-num text-[15px] font-medium text-[var(--ink)]"
             role="timer"
             aria-label="Practice time remaining"
           >
             {display}
           </span>
-        </div>
-
-        <div className="flex items-center gap-3">
           {timer.kind === "done" && (
-            <span
-              role="status"
-              className="font-mono-score inline-flex items-center gap-1.5 text-xs font-medium text-[var(--verdigris)]"
-            >
-              <IconCheck size={14} /> Time’s up
+            <span role="status" className="inline-flex items-center gap-1 text-[13px] font-medium text-[var(--lock)]">
+              <Check size={14} strokeWidth={1.75} aria-hidden="true" />
+              <span>Time is up</span>
             </span>
           )}
-          <button
-            type="button"
-            onClick={toggle}
-            className="tactile font-mono-score inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border border-[var(--rule-mid)] bg-[var(--folio)] px-3.5 py-1.5 text-[11px] uppercase text-[var(--prussian)] hover:border-[var(--prussian)] hover:bg-[var(--prussian)] hover:text-[var(--prussian-ink)]"
-          >
-            {timer.kind === "running" ? <IconPause size={12} /> : <IconPlay size={12} />}
-            <span>
-              {timer.kind === "running"
-                ? "Pause"
-                : timer.kind === "done"
-                  ? "Restart"
-                  : "Start timer"}
-            </span>
-          </button>
         </div>
+
+        <button type="button" onClick={toggle} className="btn-secondary min-h-11 px-4 text-[14px]">
+          {timer.kind === "running" ? (
+            <Pause size={14} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <Play size={14} strokeWidth={1.5} aria-hidden="true" />
+          )}
+          <span>
+            {timer.kind === "running"
+              ? "Pause timer"
+              : timer.kind === "done"
+                ? "Restart timer"
+                : "Start timer"}
+          </span>
+        </button>
       </div>
 
-      {/* Pure compositor progress line (scaleX only — zero width animation!) */}
-      <div className="h-[2px] w-full overflow-hidden bg-[var(--rule)]" aria-hidden="true">
+      <div className="h-[2px] w-full overflow-hidden bg-[var(--line)]" aria-hidden="true">
         <div
-          className="h-full w-full origin-left bg-[var(--cobalt)] transition-transform duration-200 ease-[var(--ease-snap)]"
+          className="h-full w-full origin-left bg-[var(--ink)] transition-transform duration-200 ease-out"
           style={{ transform: `scale3d(${ratio.toFixed(4)}, 1, 1)` }}
         />
       </div>

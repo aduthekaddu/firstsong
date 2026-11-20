@@ -1,301 +1,223 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useState } from "react";
+import { Volume2 } from "lucide-react";
 import { guitarStrings, type Chord } from "../lib/chords";
 import { fretHz, openAudio, pluckString, strumChord } from "../lib/sound";
-import { ticker } from "../lib/ticker";
-import { IconVolume } from "./icons";
 
-const FRET_Y = [34, 62, 90, 118, 146] as const;
-const stringX = (i: number) => 27 + i * 23;
-const STRING_LETTERS = ["E", "A", "D", "G", "B", "e"] as const;
+const FINGER_NAMES = ["", "index finger", "middle finger", "ring finger", "pinky finger"] as const;
 
-type StringVib = { amp: number; phase: number; omega: number };
+export function describeChord(chord: Chord): string {
+  return chord.strings
+    .map((pos, idx) => {
+      const name = guitarStrings[idx].label;
+      if (pos === "x") return `${name} string muted`;
+      if (pos === 0) return `${name} string open`;
+      return `${name} string fret ${pos[0]} with ${FINGER_NAMES[pos[1]]}`;
+    })
+    .join("; ");
+}
 
 export function ChordDiagram({
   chord,
   showStrum = false,
   compact = false,
-  tone = "paper",
 }: {
   chord: Chord;
   showStrum?: boolean;
   compact?: boolean;
-  tone?: "paper" | "prussian";
 }) {
-  const audioRef = useRef<AudioContext | null>(null);
-  const spindleRefs = useRef<Array<SVGPathElement | null>>([]);
-  const vibRef = useRef<StringVib[]>(
-    guitarStrings.map((_, i) => ({
-      amp: 0,
-      phase: 0,
-      omega: (34 - i * 2.5) * Math.PI * 2,
-    }))
-  );
-  const unsubRef = useRef<(() => void) | null>(null);
-  const dark = tone === "prussian";
+  const [activeString, setActiveString] = useState<number | null>(null);
+  const [strumming, setStrumming] = useState(false);
 
-  const ensureTicker = () => {
-    if (unsubRef.current) return;
-    unsubRef.current = ticker.subscribe((_now, dt) => {
-      let anyActive = false;
-      for (let i = 0; i < 6; i++) {
-        const st = vibRef.current[i];
-        const el = spindleRefs.current[i];
-        if (!el) continue;
-        if (st.amp > 0.015) {
-          anyActive = true;
-          st.phase += st.omega * dt;
-          st.amp *= Math.exp(-(3.4 + i * 0.2) * dt);
-          if (st.amp <= 0.015) {
-            st.amp = 0;
-            el.style.transform = "scale3d(0, 1, 1)";
-            el.style.opacity = "0";
-          } else {
-            const sx = (0.35 + Math.abs(Math.sin(st.phase)) * 0.65) * st.amp;
-            el.style.transform = `scale3d(${sx.toFixed(3)}, 1, 1)`;
-            el.style.opacity = Math.min(1, st.amp * 1.25).toFixed(3);
-          }
-        }
-      }
-      if (!anyActive && unsubRef.current) {
-        unsubRef.current();
-        unsubRef.current = null;
-      }
-    });
-  };
+  const width = compact ? 168 : 204;
+  const height = compact ? 194 : 228;
+  const padX = compact ? 22 : 28;
+  const padTop = compact ? 36 : 42;
+  const padBottom = 26;
+  const gridW = width - padX * 2;
+  const gridH = height - padTop - padBottom;
+  const frets = 4;
 
-  useEffect(() => {
-    return () => {
-      if (unsubRef.current) {
-        unsubRef.current();
-        unsubRef.current = null;
-      }
-    };
-  }, []);
+  const stringX = (idx: number) => padX + (idx / 5) * gridW;
+  const fretY = (fret: number) => padTop + (fret / frets) * gridH;
 
-  const exciteString = (index: number) => {
-    const st = vibRef.current[index];
-    st.amp = 1;
-    st.phase = 0;
-    ensureTicker();
-  };
-
-  async function handlePluck(index: number) {
-    const pos = chord.strings[index];
+  async function handlePluck(idx: number) {
+    const pos = chord.strings[idx];
     if (pos === "x") return;
     const fret = pos === 0 ? 0 : pos[0];
-    exciteString(index);
+    setActiveString(idx);
+    window.setTimeout(() => setActiveString((curr) => (curr === idx ? null : curr)), 450);
+
     try {
-      const ctx = await openAudio(audioRef.current);
-      audioRef.current = ctx;
-      pluckString({ context: ctx, hz: fretHz(index, fret), volume: 0.21 });
+      const ctx = await openAudio();
+      pluckString({
+        context: ctx,
+        hz: fretHz(idx, fret),
+        volume: 0.32,
+        brightness: idx < 3 ? 0.48 : 0.64,
+      });
     } catch {
-      // Browser audio gesture restriction
+      // Audio blocked or unsupported
     }
   }
 
   async function handleStrum() {
+    setStrumming(true);
     try {
-      const ctx = await openAudio(audioRef.current);
-      audioRef.current = ctx;
+      const ctx = await openAudio();
       strumChord({
         context: ctx,
         chord,
-        spreadSeconds: 0.042,
-        onStringPluck: (idx) => exciteString(idx),
+        onStringPluck: (sIdx) => {
+          setActiveString(sIdx);
+          window.setTimeout(() => setActiveString((curr) => (curr === sIdx ? null : curr)), 320);
+        },
       });
     } catch {
-      // Visual-only fallback if audio fails
-      chord.strings.forEach((pos, idx) => {
-        if (pos !== "x") window.setTimeout(() => exciteString(idx), idx * 42);
-      });
+      // Ignore audio block
     }
+    window.setTimeout(() => setStrumming(false), 380);
   }
 
-  const description = chord.strings
-    .map((position, index) => {
-      const label = guitarStrings[index].label;
-      if (position === "x") return `${label} muted`;
-      if (position === 0) return `${label} open`;
-      return `${label} fret ${position[0]}, finger ${position[1]}`;
-    })
-    .join(". ");
-
-  const fieldFill = dark ? "rgba(255,255,255,0.04)" : "var(--vellum)";
-  const nutColor = dark ? "var(--prussian-ink)" : "var(--prussian)";
-  const fretColor = dark ? "rgba(245,243,236,0.18)" : "rgba(24,43,73,0.18)";
-  const mutedColor = dark ? "rgba(245,243,236,0.22)" : "rgba(24,43,73,0.20)";
-  const trebleColor = dark ? "rgba(245,243,236,0.72)" : "var(--ink-soft)";
-  const labelColor = dark ? "var(--prussian-muted)" : "var(--ink-muted)";
+  const description = describeChord(chord);
 
   return (
-    <div className="flex flex-col items-center gap-3.5">
-      <svg
-        className={`${compact ? "w-[144px]" : "w-[172px]"} select-none overflow-visible`}
-        viewBox="0 0 169 174"
-        role="img"
-        aria-label={`${chord.fullName}. ${description}.`}
-      >
-        <title>{`${chord.fullName}. ${description}.`}</title>
-
-        {/* Engraved fingerboard field */}
-        <rect
-          x="27"
-          y="34"
-          width="115"
-          height="112"
-          rx="1"
-          fill={fieldFill}
-        />
-
-        {/* Fret wires & nut */}
-        {FRET_Y.map((y, index) => (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative">
+        <svg
+          width={width}
+          height={height}
+          viewBox={`0 0 ${width} ${height}`}
+          role="img"
+          aria-label={`${chord.name} (${chord.fullName}) guitar chord diagram. ${description}`}
+          className="select-none overflow-visible"
+        >
+          {/* Nut bar */}
           <line
-            key={y}
-            x1="27"
-            x2="142"
-            y1={y}
-            y2={y}
-            stroke={index === 0 ? nutColor : fretColor}
-            strokeWidth={index === 0 ? 4.4 : 1.15}
+            x1={padX - 1}
+            y1={padTop}
+            x2={width - padX + 1}
+            y2={padTop}
+            stroke="var(--ink)"
+            strokeWidth="3.5"
+            strokeLinecap="square"
           />
-        ))}
 
-        {/* 6 Strings + pure-compositor vertical standing-wave spindles */}
-        {chord.strings.map((pos, index) => {
-          const x = stringX(index);
-          const isMuted = pos === "x";
-          const width = 2.05 - index * 0.2;
+          {/* Horizontal fret wires */}
+          {[1, 2, 3, 4].map((f) => (
+            <line
+              key={f}
+              x1={padX}
+              y1={fretY(f)}
+              x2={width - padX}
+              y2={fretY(f)}
+              stroke="var(--line-strong)"
+              strokeWidth="1"
+            />
+          ))}
 
-          return (
-            <g key={index}>
-              {!isMuted && (
-                <path
-                  ref={(el) => {
-                    spindleRefs.current[index] = el;
-                  }}
-                  d={`M ${x} 34 Q ${x - 6.5} 90 ${x} 146 Q ${x + 6.5} 90 ${x} 34 Z`}
-                  fill="var(--cinnabar-bright)"
-                  style={{
-                    transformOrigin: `${x}px 90px`,
-                    transform: "scale3d(0, 1, 1)",
-                    opacity: 0,
-                  }}
-                />
-              )}
+          {/* Vertical strings (Low E on left -> High E on right) */}
+          {chord.strings.map((pos, idx) => {
+            const x = stringX(idx);
+            const muted = pos === "x";
+            const isLit = activeString === idx;
+            const strokeW = Math.max(1, 2.2 - idx * 0.22);
 
-              <line
-                x1={x}
-                x2={x}
-                y1="34"
-                y2="146"
-                stroke={
-                  isMuted
-                    ? mutedColor
-                    : index < 4
-                      ? dark
-                        ? "var(--bronze)"
-                        : "var(--bronze-dark)"
-                      : trebleColor
-                }
-                strokeWidth={width}
-              />
-
-              {!isMuted && (
-                <rect
-                  x={x - 10}
-                  y="28"
-                  width="20"
-                  height="124"
-                  fill="transparent"
-                  className="cursor-pointer"
-                  onClick={() => void handlePluck(index)}
-                />
-              )}
-            </g>
-          );
-        })}
-
-        {/* Open / muted / fretted finger dots */}
-        {chord.strings.map((position, index) => {
-          const x = stringX(index);
-          if (position === "x") {
             return (
-              <path
-                key={index}
-                d={`M ${x - 4} 13 l 8 8 m -8 0 l 8 -8`}
-                fill="none"
-                stroke={labelColor}
-                strokeWidth="1.65"
-                strokeLinecap="round"
-              />
-            );
-          }
-          if (position === 0) {
-            return (
-              <circle
-                key={index}
-                cx={x}
-                cy="17"
-                r="4.5"
-                fill="none"
-                stroke={dark ? "var(--bronze)" : "var(--bronze-dark)"}
-                strokeWidth="2"
-                className="cursor-pointer"
-                onClick={() => void handlePluck(index)}
-              />
-            );
-          }
-          const [fret, finger] = position;
-          const y = 34 + (fret - 0.5) * 28;
-          return (
-            <g
-              key={index}
-              className="cursor-pointer"
-              onClick={() => void handlePluck(index)}
-            >
-              <circle cx={x} cy={y} r="9.8" fill="var(--cinnabar)" />
-              <text
-                x={x}
-                y={y}
-                dy=".35em"
-                textAnchor="middle"
-                fill="var(--folio)"
-                className="font-mono-score text-[10.5px] font-semibold"
-              >
-                {finger}
-              </text>
-            </g>
-          );
-        })}
+              <g key={guitarStrings[idx].name}>
+                <line
+                  x1={x}
+                  y1={padTop}
+                  x2={x}
+                  y2={padTop + gridH}
+                  stroke={isLit ? "var(--accent)" : idx < 3 ? "var(--brass)" : "var(--ink-soft)"}
+                  strokeWidth={isLit ? strokeW + 0.8 : strokeW}
+                  opacity={muted ? 0.28 : 0.92}
+                />
 
-        {/* String names */}
-        {STRING_LETTERS.map((letter, index) => (
-          <text
-            key={letter}
-            x={stringX(index)}
-            y="166"
-            textAnchor="middle"
-            fill={labelColor}
-            className="font-mono-score text-[11px]"
-          >
-            {letter}
-          </text>
-        ))}
-      </svg>
+                {/* Top open (O) or muted (X) indicator */}
+                {muted ? (
+                  <g stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round">
+                    <line x1={x - 4.5} y1={padTop - 19} x2={x + 4.5} y2={padTop - 10} />
+                    <line x1={x + 4.5} y1={padTop - 19} x2={x - 4.5} y2={padTop - 10} />
+                  </g>
+                ) : pos === 0 ? (
+                  <circle
+                    cx={x}
+                    cy={padTop - 14.5}
+                    r={5}
+                    fill="none"
+                    stroke={isLit ? "var(--accent)" : "var(--ink)"}
+                    strokeWidth="1.5"
+                  />
+                ) : (
+                  <g>
+                    <circle
+                      cx={x}
+                      cy={fretY(pos[0]) - gridH / (frets * 2)}
+                      r={compact ? 9.5 : 11}
+                      fill={isLit ? "var(--accent)" : "var(--ink)"}
+                    />
+                    <text
+                      x={x}
+                      y={fretY(pos[0]) - gridH / (frets * 2) + 4}
+                      textAnchor="middle"
+                      fill="var(--bg)"
+                      fontSize={compact ? "11" : "12"}
+                      fontFamily="var(--font-mono), monospace"
+                      fontWeight="500"
+                    >
+                      {pos[1]}
+                    </text>
+                  </g>
+                )}
+
+                {/* Bottom string letter */}
+                <text
+                  x={x}
+                  y={height - 6}
+                  textAnchor="middle"
+                  fill="var(--muted)"
+                  fontSize="11"
+                  fontFamily="var(--font-mono), monospace"
+                >
+                  {idx === 5 ? "e" : guitarStrings[idx].name.replace(/\d/, "")}
+                </text>
+
+                {/* Invisible clickable column hit target for plucking individual strings */}
+                {!muted && (
+                  <rect
+                    x={x - gridW / 10}
+                    y={padTop - 22}
+                    width={gridW / 5}
+                    height={gridH + 26}
+                    fill="transparent"
+                    className="cursor-pointer"
+                    onClick={() => void handlePluck(idx)}
+                  />
+                )}
+              </g>
+            );
+          })}
+        </svg>
+
+        <p className="sr-only">{description}</p>
+      </div>
 
       {showStrum && (
         <button
           type="button"
           onClick={() => void handleStrum()}
-          className={`tactile font-mono-score inline-flex min-h-9 cursor-pointer items-center gap-2 rounded-[var(--radius-control)] border px-3.5 py-1.5 text-[11px] uppercase ${
-            dark
-              ? "border-[var(--prussian-ink)]/30 bg-[var(--prussian-deep)] text-[var(--prussian-ink)] hover:border-[var(--bronze)] hover:bg-[var(--bronze)] hover:text-[var(--prussian-deep)]"
-              : "border-[var(--rule-mid)] bg-[var(--paper)] text-[var(--prussian)] hover:border-[var(--prussian)] hover:bg-[var(--prussian)] hover:text-[var(--prussian-ink)]"
-          }`}
+          className="btn-secondary min-h-11 px-4 text-[14px]"
+          aria-label={`Strum ${chord.fullName}`}
         >
-          <IconVolume size={13} />
+          <Volume2
+            size={15}
+            strokeWidth={1.5}
+            aria-hidden="true"
+            className={strumming ? "text-[var(--accent)]" : undefined}
+          />
           <span>Strum {chord.name}</span>
         </button>
       )}

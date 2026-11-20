@@ -1,106 +1,148 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowRight, Plus } from "lucide-react";
 import { course } from "../lib/lessons";
-import { IconArrowUpRight } from "./icons";
-import { PlateEyebrow } from "./ui";
-import { RevealPlate, SplitReveal, StaveRule } from "./motion-primitives";
 
+const liveRoutes: Record<string, { href: string; action: string }> = {
+  "stage-0": { href: "#lesson", action: "Open Stage 0" },
+  "week-1": { href: "/week-1/", action: "Open Week 1" },
+};
+
+/**
+ * Six-week curriculum ledger (Harry Atkins / Gregor Collienne hairline index style).
+ * Replaces the generic 8-card grid with a calm, borderless, scannable ledger
+ * where upcoming weeks expand cleanly in place via native <details>.
+ */
 export function CourseArc() {
   return (
     <section
-      aria-labelledby="course-arc-title"
-      className="urtext-container pt-20 pb-8 md:pt-28"
+      id="curriculum"
+      aria-labelledby="curriculum-heading"
+      className="mt-24 border-t border-[var(--line)] pt-16 sm:mt-28 sm:pt-20"
     >
-      <StaveRule className="mb-10" />
-
-      <div className="mb-12 grid gap-6 md:grid-cols-12 md:items-end">
-        <div className="space-y-3 md:col-span-7">
-          <PlateEyebrow index="Plate 03" label="The Six-Week Score" />
-          <SplitReveal
-            as="h2"
-            className="font-display-section text-[var(--ink)]"
-            lines={[
-              "One kept recording,",
-              <em key="em" className="text-[var(--cobalt)]">
-                every single week.
-              </em>,
-            ]}
-          />
+      <div className="shell-wrap">
+        <div className="grid gap-6 pb-10 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <h2 id="curriculum-heading" className="type-h2 text-[var(--ink)]">
+              Six weeks from one chord to a finished recording
+            </h2>
+          </div>
+          <div className="lg:col-span-5">
+            <p className="type-lead max-w-[46ch]">
+              Every week ends with one concrete artifact you can play back. Stage 0 and Week 1 run live in this browser; Weeks 2 through 8 lay out the full roadmap.
+            </p>
+          </div>
         </div>
-        <p className="text-sm leading-relaxed text-[var(--ink-muted)] md:col-span-5 md:text-base">
-          Most guitar courses pile up exercises until you quit. FIRSTSONG is built backward from finished songs: six focused weeks, one tangible audio artifact per week, and zero accounts standing between you and the instrument.
-        </p>
-      </div>
 
-      <ol className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {course.map((unit, idx) => {
-          const route = idx === 0 ? "#lesson" : idx === 1 ? "/week-1/" : null;
-          const isLive = idx <= 1;
-          return (
-            <li key={unit.id}>
-              <RevealPlate index={idx} className="h-full">
-                <article
-                  className={`flex h-full flex-col justify-between rounded-[var(--radius-plate)] border p-6 transition-colors duration-200 ${
-                    isLive
-                      ? "border-[var(--prussian)]/35 bg-[var(--folio)] hover:border-[var(--cobalt)]"
-                      : "border-[var(--rule)] bg-[var(--paper)]"
-                  }`}
+        {/* Hairline Ledger */}
+        <ol className="m-0 list-none divide-y divide-[var(--line)] border-y border-[var(--line)] p-0">
+          {course.map((lesson, idx) => {
+            const live = liveRoutes[lesson.id];
+            const indexLabel = String(idx).padStart(2, "0");
+
+            if (live) {
+              return (
+                <li
+                  key={lesson.id}
+                  className="grid gap-4 py-6 sm:grid-cols-12 sm:items-baseline sm:gap-6"
                 >
-                  <div>
-                    <div className="mb-4 flex items-center justify-between border-b border-[var(--rule)] pb-3">
-                      <span className="font-mono-score text-[11px] font-medium uppercase text-[var(--cinnabar)]">
-                        {unit.stage}
+                  <div className="flex items-baseline gap-3 sm:col-span-3">
+                    <span className="font-mono-num text-[13px] text-[var(--muted)]">
+                      {indexLabel}
+                    </span>
+                    <span className="text-[15px] font-medium text-[var(--ink)]">
+                      {lesson.stage}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 sm:col-span-6">
+                    <h3 className="text-[18px] font-normal tracking-[-0.02em] text-[var(--ink)]">
+                      {lesson.title}
+                    </h3>
+                    <p className="text-[14px] text-[var(--muted)]">{lesson.checkpoint}</p>
+                  </div>
+
+                  <div className="sm:col-span-3 sm:text-right">
+                    {live.href.startsWith("#") ? (
+                      <a href={live.href} className="ui-link text-[14px]">
+                        <span>{live.action}</span>
+                        <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <Link href={live.href} className="ui-link text-[14px]">
+                        <span>{live.action}</span>
+                        <ArrowRight size={14} strokeWidth={1.5} aria-hidden="true" />
+                      </Link>
+                    )}
+                  </div>
+                </li>
+              );
+            }
+
+            return (
+              <li key={lesson.id} className="py-1">
+                <details className="ledger-disclosure group">
+                  <summary className="grid cursor-pointer gap-4 py-5 sm:grid-cols-12 sm:items-baseline sm:gap-6">
+                    <div className="flex items-baseline gap-3 sm:col-span-3">
+                      <span className="font-mono-num text-[13px] text-[var(--muted)]">
+                        {indexLabel}
                       </span>
-                      <span className="font-mono-score text-[10px] text-[var(--ink-muted)]">
-                        {String(idx).padStart(2, "0")}
+                      <span className="text-[15px] font-medium text-[var(--ink-soft)]">
+                        {lesson.stage}
                       </span>
                     </div>
 
-                    <h3 className="font-display text-2xl leading-tight text-[var(--ink)]">
-                      {unit.title}
-                    </h3>
-                    <p className="mt-2.5 text-sm leading-relaxed text-[var(--ink-muted)]">
-                      {unit.objective}
-                    </p>
-                  </div>
-
-                  <div className="mt-6 space-y-4 border-t border-[var(--rule)] pt-4">
-                    <p className="text-xs leading-relaxed text-[var(--ink)]">
-                      <span className="font-mono-score mr-2 inline-block rounded-[2px] bg-[var(--verdigris-tint)] px-1.5 py-0.5 text-[10px] font-medium uppercase text-[var(--verdigris)]">
-                        Keep
+                    <div className="space-y-1 sm:col-span-6">
+                      <span className="block text-[18px] font-normal tracking-[-0.02em] text-[var(--ink)]">
+                        {lesson.title}
                       </span>
-                      {unit.checkpoint}
-                    </p>
-
-                    {route === "/week-1/" ? (
-                      <Link
-                        href={route}
-                        className="score-link font-mono-score text-[11px] font-medium uppercase text-[var(--cobalt)]"
-                      >
-                        Open Week 1
-                        <IconArrowUpRight size={13} />
-                      </Link>
-                    ) : route === "#lesson" ? (
-                      <a
-                        href={route}
-                        className="score-link font-mono-score text-[11px] font-medium uppercase text-[var(--cobalt)]"
-                      >
-                        Practice above
-                        <IconArrowUpRight size={13} />
-                      </a>
-                    ) : (
-                      <span className="font-mono-score text-[10px] uppercase text-[var(--ink-muted)]/80">
-                        Curriculum outline
+                      <span className="block text-[14px] text-[var(--muted)]">
+                        {lesson.checkpoint}
                       </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-[14px] font-medium text-[var(--ink-soft)] group-hover:text-[var(--ink)] sm:col-span-3 sm:justify-end">
+                      <span>Preview steps</span>
+                      <Plus
+                        size={15}
+                        strokeWidth={1.5}
+                        aria-hidden="true"
+                        className="transition-transform duration-200 ease-[var(--ease-ui)] group-open:rotate-45"
+                      />
+                    </div>
+                  </summary>
+
+                  <div className="grid gap-6 pb-6 pt-2 sm:grid-cols-12">
+                    <div className="space-y-4 sm:col-span-6 sm:col-start-4">
+                      <p className="text-[15px] text-[var(--ink-soft)]">{lesson.objective}</p>
+                      <ul className="m-0 list-none space-y-3 border-t border-[var(--line)] pt-4 p-0">
+                        {lesson.steps.map((step) => (
+                          <li key={step.id} className="space-y-0.5">
+                            <p className="text-[14px] font-medium text-[var(--ink)]">
+                              {step.title}
+                            </p>
+                            <p className="text-[14px] text-[var(--muted)]">{step.instruction}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {lesson.stallResponses.length > 0 && (
+                      <div className="space-y-2 border-t border-[var(--line)] pt-4 sm:col-span-3 sm:border-t-0 sm:pt-0">
+                        <p className="text-[13px] font-medium text-[var(--ink)]">If you stall</p>
+                        <p className="text-[13px] leading-relaxed text-[var(--muted)]">
+                          {lesson.stallResponses[0]}
+                        </p>
+                      </div>
                     )}
                   </div>
-                </article>
-              </RevealPlate>
-            </li>
-          );
-        })}
-      </ol>
+                </details>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
     </section>
   );
 }

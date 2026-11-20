@@ -1,21 +1,26 @@
 {
   "mode": "after",
-  "timestamp": "2026-11-19T06:51:14.350Z",
+  "timestamp": "2026-11-20T05:01:13.941Z",
   "bundle": {
     "js": {
-      "files": 15,
-      "raw": 743739,
-      "gzip": 223816,
+      "files": 13,
+      "raw": 830780,
+      "gzip": 262001,
       "list": [
         {
-          "file": "_next/static/chunks/39_j1bdzreq0m.js",
-          "raw": 229288,
-          "gzip": 71889
+          "file": "_next/static/chunks/10c454jx9phor.js",
+          "raw": 229277,
+          "gzip": 71890
         },
         {
-          "file": "_next/static/chunks/3b7v8xei-k6e1.js",
-          "raw": 164578,
-          "gzip": 45467
+          "file": "_next/static/chunks/0_tifv751s5b3.js",
+          "raw": 180060,
+          "gzip": 48618
+        },
+        {
+          "file": "_next/static/chunks/1xzx7fubm6hc_.js",
+          "raw": 128281,
+          "gzip": 43820
         },
         {
           "file": "_next/static/chunks/0cz1d0mv5g_q7.js",
@@ -23,34 +28,29 @@
           "gzip": 39494
         },
         {
-          "file": "_next/static/chunks/1vd2j-s2ihqrg.js",
-          "raw": 76783,
-          "gzip": 18565
+          "file": "_next/static/chunks/2gs6ah2cym3fa.js",
+          "raw": 72456,
+          "gzip": 22988
         },
         {
-          "file": "_next/static/chunks/2g3-onkw4ct0q.js",
-          "raw": 36385,
-          "gzip": 9807
+          "file": "_next/static/chunks/2n1pevlk1nxgp.js",
+          "raw": 33999,
+          "gzip": 11139
         },
         {
-          "file": "_next/static/chunks/1d-3ziz_810o8.js",
-          "raw": 34522,
-          "gzip": 8684
+          "file": "_next/static/chunks/2ve66g91tvao_.js",
+          "raw": 25343,
+          "gzip": 8841
         },
         {
-          "file": "_next/static/chunks/1hym5y-ihgr5i.js",
-          "raw": 33247,
-          "gzip": 10800
+          "file": "_next/static/chunks/2zuedr5rj17o3.js",
+          "raw": 24402,
+          "gzip": 7480
         },
         {
-          "file": "_next/static/chunks/3xtd-xho-gvj3.js",
-          "raw": 18554,
-          "gzip": 6091
-        },
-        {
-          "file": "_next/static/chunks/3qfy96eoyh-ek.js",
-          "raw": 13994,
-          "gzip": 3536
+          "file": "_next/static/chunks/318vd_uhd1odi.js",
+          "raw": 13999,
+          "gzip": 3531
         },
         {
           "file": "_next/static/chunks/turbopack-2u1d16houkiyo.js",
@@ -58,27 +58,17 @@
           "gzip": 3919
         },
         {
-          "file": "_next/static/chunks/1bm2la14t7e1_.js",
-          "raw": 8061,
-          "gzip": 3326
-        },
-        {
-          "file": "_next/static/chunks/310vm2bl3xxpt.js",
-          "raw": 5364,
-          "gzip": 1957
-        },
-        {
-          "file": "_next/static/yYSG0V6OH6edyLabHoZf-/_buildManifest.js",
+          "file": "_next/static/MfqeNTcPjaJBQNHj_LUT8/_buildManifest.js",
           "raw": 219,
           "gzip": 151
         },
         {
-          "file": "_next/static/yYSG0V6OH6edyLabHoZf-/_clientMiddlewareManifest.js",
+          "file": "_next/static/MfqeNTcPjaJBQNHj_LUT8/_clientMiddlewareManifest.js",
           "raw": 96,
           "gzip": 66
         },
         {
-          "file": "_next/static/yYSG0V6OH6edyLabHoZf-/_ssgManifest.js",
+          "file": "_next/static/MfqeNTcPjaJBQNHj_LUT8/_ssgManifest.js",
           "raw": 80,
           "gzip": 64
         }
@@ -86,47 +76,42 @@
     },
     "css": {
       "files": 1,
-      "raw": 54558,
-      "gzip": 10840,
+      "raw": 39461,
+      "gzip": 8220,
       "list": [
         {
-          "file": "_next/static/chunks/1op6688vuzj0h.css",
-          "raw": 54558,
-          "gzip": 10840
+          "file": "_next/static/chunks/3z1rgtuew6pjk.css",
+          "raw": 39461,
+          "gzip": 8220
         }
       ]
     },
     "fonts": {
-      "files": 4,
-      "raw": 209864,
-      "gzip": 210011,
+      "files": 3,
+      "raw": 58996,
+      "gzip": 59070,
       "list": [
         {
-          "file": "_next/static/media/fraunces_latin_opsz_italic-s.p.09l6e6sk-66_f.woff2",
-          "raw": 81520,
-          "gzip": 81563
+          "file": "_next/static/media/geist_latin_wght_normal-s.p.20f3xrkj613ah.woff2",
+          "raw": 29400,
+          "gzip": 29428
         },
         {
-          "file": "_next/static/media/fraunces_latin_opsz_normal-s.p.17h97bimeg07z.woff2",
-          "raw": 67304,
-          "gzip": 67347
+          "file": "_next/static/media/ibm_plex_mono_latin_500_normal-s.p.11q3guvgd1r20.woff2",
+          "raw": 14888,
+          "gzip": 14911
         },
         {
-          "file": "_next/static/media/hanken_grotesk_latin_wght_normal-s.p.3241148m1u9do.woff2",
-          "raw": 34704,
-          "gzip": 34737
-        },
-        {
-          "file": "_next/static/media/chivo_mono_latin_wght_normal-s.p.3qwacyuwizwsr.woff2",
-          "raw": 26336,
-          "gzip": 26364
+          "file": "_next/static/media/ibm_plex_mono_latin_400_normal-s.p.3xdfs0-p_zi4c.woff2",
+          "raw": 14708,
+          "gzip": 14731
         }
       ]
     },
     "images": {
       "files": 3,
-      "raw": 55788,
-      "gzip": 50806,
+      "raw": 54466,
+      "gzip": 50556,
       "list": [
         {
           "file": "og-image.png",
@@ -134,148 +119,143 @@
           "gzip": 50194
         },
         {
-          "file": "_next/static/media/icon.2w0v1isr6qnln.svg",
-          "raw": 943,
-          "gzip": 306
+          "file": "_next/static/media/icon.07ujtrv6iafv4.svg",
+          "raw": 282,
+          "gzip": 181
         },
         {
           "file": "icon.svg",
-          "raw": 943,
-          "gzip": 306
+          "raw": 282,
+          "gzip": 181
         }
       ]
     },
     "html": {
       "files": 6,
-      "raw": 403285,
-      "gzip": 58470,
+      "raw": 257136,
+      "gzip": 45324,
       "list": [
         {
-          "file": "chords/index.html",
-          "raw": 130158,
-          "gzip": 13251
+          "file": "index.html",
+          "raw": 78356,
+          "gzip": 12282
         },
         {
-          "file": "index.html",
-          "raw": 114356,
-          "gzip": 15048
+          "file": "chords/index.html",
+          "raw": 52688,
+          "gzip": 8870
         },
         {
           "file": "week-1/index.html",
-          "raw": 57725,
-          "gzip": 11115
+          "raw": 47849,
+          "gzip": 9367
         },
         {
           "file": "404/index.html",
-          "raw": 33682,
-          "gzip": 6352
+          "raw": 26081,
+          "gzip": 4935
         },
         {
           "file": "404.html",
-          "raw": 33682,
-          "gzip": 6352
+          "raw": 26081,
+          "gzip": 4935
         },
         {
           "file": "_not-found/index.html",
-          "raw": 33682,
-          "gzip": 6352
+          "raw": 26081,
+          "gzip": 4935
         }
       ]
     },
     "other": {
-      "files": 19,
-      "raw": 166720,
-      "gzip": 45975,
+      "files": 18,
+      "raw": 103374,
+      "gzip": 36138,
       "list": [
         {
-          "file": "chords/__next._full.txt",
-          "raw": 24121,
-          "gzip": 4207
-        },
-        {
-          "file": "chords/index.txt",
-          "raw": 24121,
-          "gzip": 4207
-        },
-        {
-          "file": "chords/__next.chords.__PAGE__.txt",
-          "raw": 22912,
-          "gzip": 3997
-        },
-        {
           "file": "__next._full.txt",
-          "raw": 9725,
-          "gzip": 3433
+          "raw": 9171,
+          "gzip": 3226
         },
         {
           "file": "index.txt",
-          "raw": 9725,
-          "gzip": 3433
+          "raw": 9171,
+          "gzip": 3226
         },
         {
           "file": "week-1/__next._full.txt",
-          "raw": 9465,
-          "gzip": 3232
+          "raw": 8925,
+          "gzip": 3023
         },
         {
           "file": "week-1/index.txt",
-          "raw": 9465,
-          "gzip": 3232
+          "raw": 8925,
+          "gzip": 3023
         },
         {
           "file": "__next.__PAGE__.txt",
-          "raw": 8672,
-          "gzip": 3211
-        },
-        {
-          "file": "_not-found/__next._full.txt",
-          "raw": 8401,
-          "gzip": 2322
-        },
-        {
-          "file": "_not-found/index.txt",
-          "raw": 8401,
-          "gzip": 2322
+          "raw": 8172,
+          "gzip": 3003
         },
         {
           "file": "week-1/__next.week-1.__PAGE__.txt",
-          "raw": 8214,
-          "gzip": 3021
+          "raw": 7728,
+          "gzip": 2807
+        },
+        {
+          "file": "_not-found/__next._full.txt",
+          "raw": 7183,
+          "gzip": 2096
+        },
+        {
+          "file": "_not-found/index.txt",
+          "raw": 7183,
+          "gzip": 2096
+        },
+        {
+          "file": "chords/__next._full.txt",
+          "raw": 6670,
+          "gzip": 2257
+        },
+        {
+          "file": "chords/index.txt",
+          "raw": 6670,
+          "gzip": 2257
         },
         {
           "file": "_not-found/__next._not-found.__PAGE__.txt",
-          "raw": 7652,
-          "gzip": 2214
+          "raw": 6358,
+          "gzip": 1995
         },
         {
-          "file": "font-licenses/hanken-grotesk.txt",
-          "raw": 4530,
-          "gzip": 1991
+          "file": "chords/__next.chords.__PAGE__.txt",
+          "raw": 5494,
+          "gzip": 2038
         },
         {
-          "file": "font-licenses/fraunces.txt",
-          "raw": 4504,
-          "gzip": 1988
+          "file": "font-licenses/ibm-plex-mono.txt",
+          "raw": 5299,
+          "gzip": 2014
         },
         {
-          "file": "font-licenses/chivo-mono.txt",
-          "raw": 4492,
-          "gzip": 1984
+          "file": "font-licenses/geist.txt",
+          "raw": 4486,
+          "gzip": 1979
         },
         {
           "file": "chords/__next._tree.txt",
-          "raw": 717,
-          "gzip": 336
+          "raw": 590,
+          "gzip": 308
         },
         {
           "file": "week-1/__next._tree.txt",
-          "raw": 717,
-          "gzip": 336
+          "raw": 590,
+          "gzip": 309
         },
         {
           "file": "__next._tree.txt",
-          "raw": 668,
-          "gzip": 321
+          "raw": 541,
+          "gzip": 293
         },
         {
           "file": "_not-found/__next._tree.txt",
@@ -290,29 +270,30 @@
       "route": "/",
       "width": 390,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/home-390.png",
-      "scrollWidth": 390,
+      "scrollWidth": 375,
       "innerWidth": 390,
-      "scrollHeight": 7776,
+      "scrollHeight": 4462,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
-      "errors": []
+      "errors": [
+        "warning: [.WebGL-0xe340014ba00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "warning: [.WebGL-0xe340014ba00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      ]
     },
     {
       "route": "/week-1/",
       "width": 390,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/week-1-390.png",
-      "scrollWidth": 390,
+      "scrollWidth": 375,
       "innerWidth": 390,
-      "scrollHeight": 3837,
+      "scrollHeight": 2693,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -320,29 +301,30 @@
       "route": "/chords/",
       "width": 390,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/chords-390.png",
-      "scrollWidth": 390,
+      "scrollWidth": 375,
       "innerWidth": 390,
-      "scrollHeight": 5480,
+      "scrollHeight": 2171,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
-      "errors": []
+      "errors": [
+        "warning: [.WebGL-0xe3400aeac00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+        "warning: [.WebGL-0xe3400aeac00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+      ]
     },
     {
       "route": "/",
       "width": 768,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/home-768.png",
-      "scrollWidth": 768,
+      "scrollWidth": 753,
       "innerWidth": 768,
-      "scrollHeight": 5858,
+      "scrollHeight": 3768,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -350,14 +332,13 @@
       "route": "/week-1/",
       "width": 768,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/week-1-768.png",
-      "scrollWidth": 768,
+      "scrollWidth": 753,
       "innerWidth": 768,
-      "scrollHeight": 3035,
+      "scrollHeight": 2172,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -365,14 +346,13 @@
       "route": "/chords/",
       "width": 768,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/chords-768.png",
-      "scrollWidth": 768,
+      "scrollWidth": 753,
       "innerWidth": 768,
-      "scrollHeight": 3524,
+      "scrollHeight": 1911,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -380,14 +360,13 @@
       "route": "/",
       "width": 1280,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/home-1280.png",
-      "scrollWidth": 1280,
+      "scrollWidth": 1265,
       "innerWidth": 1280,
-      "scrollHeight": 5239,
+      "scrollHeight": 3126,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -395,14 +374,13 @@
       "route": "/week-1/",
       "width": 1280,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/week-1-1280.png",
-      "scrollWidth": 1280,
+      "scrollWidth": 1265,
       "innerWidth": 1280,
-      "scrollHeight": 2526,
+      "scrollHeight": 1945,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -410,14 +388,13 @@
       "route": "/chords/",
       "width": 1280,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/chords-1280.png",
-      "scrollWidth": 1280,
+      "scrollWidth": 1265,
       "innerWidth": 1280,
-      "scrollHeight": 2136,
+      "scrollHeight": 1406,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -425,14 +402,13 @@
       "route": "/",
       "width": 1440,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/home-1440.png",
-      "scrollWidth": 1440,
+      "scrollWidth": 1425,
       "innerWidth": 1440,
-      "scrollHeight": 5280,
+      "scrollHeight": 3124,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -440,14 +416,13 @@
       "route": "/week-1/",
       "width": 1440,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/week-1-1440.png",
-      "scrollWidth": 1440,
+      "scrollWidth": 1425,
       "innerWidth": 1440,
-      "scrollHeight": 2527,
+      "scrollHeight": 1965,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -455,14 +430,13 @@
       "route": "/chords/",
       "width": 1440,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/chords-1440.png",
-      "scrollWidth": 1440,
+      "scrollWidth": 1425,
       "innerWidth": 1440,
-      "scrollHeight": 2123,
+      "scrollHeight": 1416,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -470,14 +444,13 @@
       "route": "/",
       "width": 1920,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/home-1920.png",
-      "scrollWidth": 1920,
+      "scrollWidth": 1905,
       "innerWidth": 1920,
-      "scrollHeight": 5323,
+      "scrollHeight": 3140,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -485,14 +458,13 @@
       "route": "/week-1/",
       "width": 1920,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/week-1-1920.png",
-      "scrollWidth": 1920,
+      "scrollWidth": 1905,
       "innerWidth": 1920,
-      "scrollHeight": 2550,
+      "scrollHeight": 1979,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     },
@@ -500,14 +472,13 @@
       "route": "/chords/",
       "width": 1920,
       "file": "/home/ubuntu/firstsong/redesign-notes/after/chords-1920.png",
-      "scrollWidth": 1920,
+      "scrollWidth": 1905,
       "innerWidth": 1920,
-      "scrollHeight": 2142,
+      "scrollHeight": 1425,
       "fontsLoaded": [
-        "fraunces (100 900)",
-        "fraunces (100 900)",
-        "hankenGrotesk (100 900)",
-        "chivoMono (100 900)"
+        "geistSans (100 900)",
+        "ibmPlexMono (400)",
+        "ibmPlexMono (500)"
       ],
       "errors": []
     }
@@ -521,24 +492,19 @@
         "seo": 100
       },
       "metrics": {
-        "fcpMs": 363,
-        "lcpMs": 363,
+        "fcpMs": 282,
+        "lcpMs": 282,
         "cls": 0,
         "tbtMs": 0,
-        "siMs": 363,
-        "interactiveMs": 363
+        "siMs": 582,
+        "interactiveMs": 282
       },
       "failedAudits": [
-        {
-          "id": "label-content-name-mismatch",
-          "title": "Elements with visible text labels do not have matching accessible names.",
-          "score": 0
-        },
         {
           "id": "unused-javascript",
           "title": "Reduce unused JavaScript",
           "score": 0.5,
-          "displayValue": "Est savings of 171 KiB"
+          "displayValue": "Est savings of 269 KiB"
         },
         {
           "id": "bf-cache",
@@ -549,14 +515,14 @@
         {
           "id": "cache-insight",
           "title": "Use efficient cache lifetimes",
-          "score": 0,
-          "displayValue": "Est savings of 863 KiB"
+          "score": 0.5,
+          "displayValue": "Est savings of 800 KiB"
         },
         {
           "id": "document-latency-insight",
           "title": "Document request latency",
           "score": 0.5,
-          "displayValue": "Est savings of 75 KiB"
+          "displayValue": "Est savings of 51 KiB"
         },
         {
           "id": "legacy-javascript-insight",
@@ -572,8 +538,7 @@
         {
           "id": "render-blocking-insight",
           "title": "Render-blocking requests",
-          "score": 0,
-          "displayValue": "Est savings of 50 ms"
+          "score": 0.5
         }
       ]
     },
@@ -585,19 +550,24 @@
         "seo": 100
       },
       "metrics": {
-        "fcpMs": 322,
-        "lcpMs": 322,
+        "fcpMs": 282,
+        "lcpMs": 282,
         "cls": 0,
         "tbtMs": 0,
-        "siMs": 322,
-        "interactiveMs": 322
+        "siMs": 282,
+        "interactiveMs": 282
       },
       "failedAudits": [
+        {
+          "id": "label-content-name-mismatch",
+          "title": "Elements with visible text labels do not have matching accessible names.",
+          "score": 0
+        },
         {
           "id": "unused-javascript",
           "title": "Reduce unused JavaScript",
           "score": 0.5,
-          "displayValue": "Est savings of 197 KiB"
+          "displayValue": "Est savings of 317 KiB"
         },
         {
           "id": "bf-cache",
@@ -608,14 +578,14 @@
         {
           "id": "cache-insight",
           "title": "Use efficient cache lifetimes",
-          "score": 0,
-          "displayValue": "Est savings of 863 KiB"
+          "score": 0.5,
+          "displayValue": "Est savings of 800 KiB"
         },
         {
           "id": "document-latency-insight",
           "title": "Document request latency",
           "score": 0.5,
-          "displayValue": "Est savings of 38 KiB"
+          "displayValue": "Est savings of 31 KiB"
         },
         {
           "id": "legacy-javascript-insight",
@@ -631,8 +601,7 @@
         {
           "id": "render-blocking-insight",
           "title": "Render-blocking requests",
-          "score": 0,
-          "displayValue": "Est savings of 70 ms"
+          "score": 0.5
         }
       ]
     },
@@ -644,19 +613,24 @@
         "seo": 100
       },
       "metrics": {
-        "fcpMs": 362,
-        "lcpMs": 362,
+        "fcpMs": 282,
+        "lcpMs": 282,
         "cls": 0,
-        "tbtMs": 0,
-        "siMs": 362,
-        "interactiveMs": 362
+        "tbtMs": 22,
+        "siMs": 465,
+        "interactiveMs": 835
       },
       "failedAudits": [
+        {
+          "id": "label-content-name-mismatch",
+          "title": "Elements with visible text labels do not have matching accessible names.",
+          "score": 0
+        },
         {
           "id": "unused-javascript",
           "title": "Reduce unused JavaScript",
           "score": 0.5,
-          "displayValue": "Est savings of 224 KiB"
+          "displayValue": "Est savings of 332 KiB"
         },
         {
           "id": "bf-cache",
@@ -667,14 +641,14 @@
         {
           "id": "cache-insight",
           "title": "Use efficient cache lifetimes",
-          "score": 0,
-          "displayValue": "Est savings of 863 KiB"
+          "score": 0.5,
+          "displayValue": "Est savings of 800 KiB"
         },
         {
           "id": "document-latency-insight",
           "title": "Document request latency",
           "score": 0.5,
-          "displayValue": "Est savings of 85 KiB"
+          "displayValue": "Est savings of 34 KiB"
         },
         {
           "id": "legacy-javascript-insight",
@@ -690,8 +664,7 @@
         {
           "id": "render-blocking-insight",
           "title": "Render-blocking requests",
-          "score": 0,
-          "displayValue": "Est savings of 60 ms"
+          "score": 0.5
         }
       ]
     }
@@ -699,7 +672,7 @@
   "scrollTrace": {
     "x1": {
       "throttle": 1,
-      "frameCount": 420,
+      "frameCount": 277,
       "avgFrameMs": 16.67,
       "fps": 60,
       "p95FrameMs": 16.7,
@@ -708,28 +681,38 @@
       "longTasks": [],
       "longTasksOver50ms": 0,
       "activeAnimations": 1,
-      "layoutCountDelta": 19,
-      "recalcStyleCountDelta": 599,
-      "layoutDurationMsDelta": 3.04,
-      "scriptDurationMsDelta": 80.25,
-      "consoleMessages": []
+      "layoutCountDelta": 0,
+      "recalcStyleCountDelta": 0,
+      "layoutDurationMsDelta": 0,
+      "scriptDurationMsDelta": 7.01,
+      "consoleMessages": [
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x2340013ac00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        }
+      ]
     },
     "x4": {
       "throttle": 4,
-      "frameCount": 459,
+      "frameCount": 265,
       "avgFrameMs": 16.67,
       "fps": 60,
-      "p95FrameMs": 16.8,
+      "p95FrameMs": 16.7,
       "maxFrameMs": 16.8,
       "droppedFramesOver20ms": 0,
       "longTasks": [],
       "longTasksOver50ms": 0,
       "activeAnimations": 1,
-      "layoutCountDelta": 21,
-      "recalcStyleCountDelta": 637,
-      "layoutDurationMsDelta": 14.32,
-      "scriptDurationMsDelta": 289.59,
-      "consoleMessages": []
+      "layoutCountDelta": 0,
+      "recalcStyleCountDelta": 0,
+      "layoutDurationMsDelta": 0,
+      "scriptDurationMsDelta": 20.79,
+      "consoleMessages": [
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x1c3c0013a000]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        }
+      ]
     }
   }
 }

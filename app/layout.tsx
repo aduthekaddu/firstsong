@@ -1,80 +1,77 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import { MotionProvider } from "../components/motion-provider";
+import type { ReactNode } from "react";
 import "./globals.css";
 
-const fraunces = localFont({
+const geistSans = localFont({
+  src: "./fonts/geist-latin-wght-normal.woff2",
+  weight: "100 900",
+  style: "normal",
+  variable: "--font-sans",
+  display: "swap",
+  preload: true,
+});
+
+const ibmPlexMono = localFont({
   src: [
-    { path: "./fonts/fraunces-latin-opsz-normal.woff2", weight: "100 900", style: "normal" },
-    { path: "./fonts/fraunces-latin-opsz-italic.woff2", weight: "100 900", style: "italic" },
+    { path: "./fonts/ibm-plex-mono-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-mono-latin-500-normal.woff2", weight: "500", style: "normal" },
   ],
-  variable: "--font-fraunces",
+  variable: "--font-mono",
   display: "swap",
   preload: true,
 });
 
-const hankenGrotesk = localFont({
-  src: "./fonts/hanken-grotesk-latin-wght-normal.woff2",
-  weight: "100 900",
-  style: "normal",
-  variable: "--font-hanken",
-  display: "swap",
-  preload: true,
-});
-
-const chivoMono = localFont({
-  src: "./fonts/chivo-mono-latin-wght-normal.woff2",
-  weight: "100 900",
-  style: "normal",
-  variable: "--font-chivo-mono",
-  display: "swap",
-  preload: true,
-});
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://aduthekaddu.github.io/firstsong";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL || "https://aduthekaddu.github.io/firstsong/"
-  ),
+  metadataBase: new URL(siteUrl),
   title: {
-    default: "FIRSTSONG — From Your First Chord to Your First Original Song",
-    template: "%s · FIRSTSONG",
+    default: "Firstsong: Learn guitar and write your first song",
+    template: "%s · Firstsong",
   },
   description:
-    "A free six-week guitar and songwriting field manual for complete beginners. Pluck your first strings, learn Em, write one true line, and record a personal hook in 15 minutes — no account required.",
+    "Free six-week beginner guitar and songwriting course. Tune six strings, learn open chords, write one concrete line, and record a 20-second hook in your browser.",
   openGraph: {
-    title: "FIRSTSONG — From Your First Chord to Your First Original Song",
+    title: "Firstsong: Learn guitar and write your first song",
     description:
-      "Six weeks, free, no account required. Open the page with a guitar and record your first 15-second hook in one sitting.",
+      "Tune six strings, play E minor, write one concrete line, and record your first 20-second hook in fifteen minutes.",
     type: "website",
-    siteName: "FIRSTSONG",
-    images: [{ url: `${process.env.NEXT_PUBLIC_BASE_PATH || ""}/og-image.png`, width: 1200, height: 630, alt: "FIRSTSONG — Six strings. One chord. Your first song." }],
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Firstsong interactive guitar and songwriting studio" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "FIRSTSONG — Guitar & Songwriting Field Manual",
+    title: "Firstsong: Learn guitar and write your first song",
     description:
-      "Pluck six open strings, play E minor, write one concrete line, and record your first original hook in 15 minutes.",
-    images: [`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/og-image.png`],
+      "Six-week beginner guitar and songwriting studio with acoustic reference audio, live microphone tuning, and local recording.",
+    images: ["/og-image.png"],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#182b49",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c0c0d" },
+  ],
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+/**
+ * Tiny synchronous FOUC-prevention script directly after <meta name="color-scheme">
+ * per modern-web-guidance (dark-mode-toggle).
+ */
+const colorSchemeInitScript = `(function(){try{var s=localStorage.getItem("color-scheme");if(s==="light"||s==="dark"){var m=document.querySelector('meta[name="color-scheme"]');if(m)m.setAttribute("content",s);}}catch(e){}})();`;
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${fraunces.variable} ${hankenGrotesk.variable} ${chivoMono.variable}`}
-    >
-      <body>
-        <MotionProvider>{children}</MotionProvider>
-      </body>
+    <html lang="en" className={`${geistSans.variable} ${ibmPlexMono.variable}`}>
+      <head>
+        <meta name="color-scheme" content="light dark" />
+        <script dangerouslySetInnerHTML={{ __html: colorSchemeInitScript }} />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
