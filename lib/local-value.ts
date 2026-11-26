@@ -28,8 +28,10 @@ export function useLocalValue<T>({
     try {
       localStorage.setItem(`firstsong:v1:${key}`, JSON.stringify(next));
       setWarning("");
+      return true;
     } catch {
       setWarning("This change is available now but could not be saved for your next visit.");
+      return false;
     }
   }
 

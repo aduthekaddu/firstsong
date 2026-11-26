@@ -2,9 +2,9 @@
 
 FIRSTSONG is a free guitar and songwriting course for complete beginners. Open the home page with a guitar and spend 15 minutes tuning, playing an E minor chord, and making a short hook of your own. You can start without an account.
 
-Stage 0 includes reference tones, a four-beat tap trainer, one lyric prompt, and a recorder for two hums and a final hook. Week 1 has an E minor downstroke drill and the rest of the week's practice outline. The chord library has ten open chord diagrams.
+Stage 0 includes reference tones, a four-beat tap trainer, a lyric prompt, and short recordings. The six-week course takes you through a four-bar hook, an eight-bar verse, a contrasting chorus, a full draft, two revisions, and a finished take. Play back your work in the songbook, download the original or a trimmed WAV, and save a separate lyric and chord sheet. The optional lessons introduce layers and mixing in an external recording program.
 
-Your progress, lyric, captions, and takes stay in this browser on this device. Clearing the site's browser data removes them. Microphone recording works on localhost and HTTPS and needs your permission.
+Your progress, lyric, captions, and takes stay in this browser on this device. Stage 0 recordings remain in their original local storage; longer studio recordings use IndexedDB. Clearing the site's browser data removes them, so keep downloaded copies. Microphone recording works on localhost and HTTPS and needs your permission. You can continue the lessons if you do not grant it.
 
 ## Run locally
 
@@ -31,12 +31,19 @@ In the repository settings, set **Pages → Build and deployment → Source** to
 
 For a local export, leave `NEXT_PUBLIC_BASE_PATH` unset to serve at the domain root. Set it to the deployment prefix, such as `/firstsong`, if you serve the files from that subdirectory.
 
-## Roadmap
+## Verify the full course
 
-- Complete Week 1's lyric, melody, and four-bar memo activities.
-- Build Weeks 2 through 4 around a verse, a contrasting chorus, and a complete draft.
-- Build Weeks 5 and 6 around arrangement, revision, and audio export.
-- Add the optional lessons on recording layers and mixing.
+```sh
+npm test
+npm run typecheck
+NEXT_PUBLIC_BASE_PATH=/firstsong npm run build
+npx playwright install chromium --only-shell
+npm run test:e2e
+```
+
+The browser test serves the static export under the GitHub Pages path. It uses Chromium's fake microphone to exercise capture, persistence, playback availability, and actual downloads. It also covers denied microphone access and checks all routes at 320 px. For release, repeat capture and export on a physical iPhone in Safari over HTTPS; simulated input and Chromium do not prove iPhone audio behavior.
+
+Design references: [Ableton Learning Music](https://www.ableton.com/en/blog/learn-music-in-your-browser/) for learning by making something, [JustinGuitar's first steps](https://www.justinguitar.com/modules/beginner-1-first-steps) for approachable chord practice, and [MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder) for local recording and format negotiation. Lesson writing follows this repo's own curriculum.
 
 ## Contribute
 

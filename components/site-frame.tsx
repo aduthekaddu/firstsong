@@ -16,7 +16,8 @@ import {
 
 const navItems = [
   { href: "/", label: "Stage 0" },
-  { href: "/week-1/", label: "Week 1" },
+  { href: "/#curriculum", label: "Course" },
+  { href: "/songbook/", label: "Songbook" },
   { href: "/chords/", label: "Chords" },
 ] as const;
 
@@ -32,7 +33,7 @@ export function SiteFrame({
   path,
   children,
 }: {
-  path: "/" | "/week-1/" | "/chords/" | "/404";
+  path: string;
   children: ReactNode;
 }) {
   const router = useRouter();

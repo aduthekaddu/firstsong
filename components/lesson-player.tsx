@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, HelpCircle } from "lucide-react";
-import type { Lesson, LessonStep } from "../lib/lessons";
+import { course, lessonHref, type Lesson, type LessonStep } from "../lib/lessons";
 import { useLocalValue } from "../lib/local-value";
 import { CourseArc } from "./course-arc";
 import { HeroStage } from "./hero-stage";
@@ -15,6 +15,7 @@ import {
   Tuner,
 } from "./practice-tools";
 import { Recordings, type Rhythm } from "./recordings";
+import { SongWorkbench } from "./song-workbench";
 
 type Progress = { current: string; visited: string[]; finished: boolean };
 
@@ -77,6 +78,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
   const index = Math.max(0, lesson.steps.findIndex((s) => s.id === progressValue.current));
   const step = lesson.steps[index];
   const next = lesson.steps[index + 1];
+  const nextLesson = course[course.findIndex((item) => item.id === lesson.id) + 1];
   const finished = progressValue.finished;
   const visited = new Set(
     progressValue.visited.filter((id) => lesson.steps.some((item) => item.id === id))
@@ -124,13 +126,13 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
       {home ? (
         <HeroStage ctaLabel={ctaLabel} onStartSession={scrollToBench} />
       ) : (
-        <section className="pt-10 pb-12 sm:pt-14 sm:pb-16" aria-labelledby="week1-heading">
+        <section className="pt-10 pb-12 sm:pt-14 sm:pb-16" aria-labelledby="course-lesson-heading">
           <div className="shell-wrap grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-8">
             <div className="lg:col-span-7">
               <p className="type-meta mb-3">
                 {lesson.stage} · {totalMinutes} minutes · {lesson.steps.length} steps
               </p>
-              <h1 id="week1-heading" className="type-h1 text-[var(--ink)]">
+              <h1 id="course-lesson-heading" className="type-h1 text-[var(--ink)]">
                 {lesson.title}
               </h1>
             </div>
@@ -283,7 +285,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                 <div className="flex items-baseline justify-between gap-4">
                   <span className="font-mono-num text-[13px] text-[var(--accent)]">
                     {finished
-                      ? "Session complete"
+                      ? visited.size === lesson.steps.length ? "Session complete" : "Session checkpoint"
                       : `Step ${index + 1} of ${lesson.steps.length} · ${step.minutes} min`}
                   </span>
                 </div>
@@ -295,6 +297,12 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     if (el && focusNextRef.current) {
                       focusNextRef.current = false;
                       el.focus({ preventScroll: true });
+                      window.requestAnimationFrame(() => {
+                        const bounds = el.getBoundingClientRect();
+                        if (bounds.top < 80 || bounds.bottom > window.innerHeight - 24) {
+                          el.scrollIntoView({ block: "center", behavior: "auto" });
+                        }
+                      });
                     }
                   }}
                   className="type-h2 text-[var(--ink)] outline-none"
@@ -302,7 +310,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   {finished
                     ? home
                       ? "Your first hook checkpoint"
-                      : "Your Week 1 checkpoint"
+                      : `${lesson.stage} checkpoint`
                     : step.title}
                 </h3>
 
@@ -320,11 +328,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                         onBusy={setBusy}
                       />
                     )}
-                    {!home && weekOneNotes.value.trim() && (
-                      <blockquote className="m-0 border-l-2 border-[var(--lock)] pl-5 text-[22px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                        “{weekOneNotes.value.trim()}”
-                      </blockquote>
-                    )}
+                    {!home && <SongWorkbench lessonId={lesson.id} stepId="checkpoint" />}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -396,34 +400,8 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     )}
 
                     {step.kind === "practice" && (
-                      <div className="space-y-4 border-y border-[var(--line)] py-6">
-                        {line.value.trim() && (
-                          <div className="border-b border-[var(--line)] pb-4">
-                            <p className="text-[13px] text-[var(--muted)]">From Stage 0</p>
-                            <p className="mt-1 text-[20px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                              “{line.value.trim()}”
-                            </p>
-                          </div>
-                        )}
-                        <div className="flex items-baseline justify-between gap-4">
-                          <label htmlFor="week1-scratch" className="text-[14px] font-medium text-[var(--ink)]">
-                            Working lyric and title notes
-                          </label>
-                          <span className="font-mono-num text-[13px] text-[var(--muted)]">
-                            {weekOneNotes.value.length}/{maxNotesLength}
-                          </span>
-                        </div>
-                        <textarea
-                          id="week1-scratch"
-                          rows={3}
-                          maxLength={maxNotesLength}
-                          disabled={!weekOneNotes.ready}
-                          value={weekOneNotes.value}
-                          onChange={(e) => weekOneNotes.save(e.target.value)}
-                          placeholder="Write four sensory details, pick a title line, or mark the stressed word"
-                          className="w-full rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-4 text-[16px] text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--ink)] focus:bg-[var(--bg)]"
-                        />
-                      </div>
+                      <SongWorkbench lessonId={lesson.id} stepId={step.id} firstLine={line.value}
+                        oldNotes={weekOneNotes.value} onBusy={setBusy} />
                     )}
 
                     <PracticeTimer minutes={step.minutes} />
@@ -462,17 +440,10 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                 </button>
 
                 {finished ? (
-                  home ? (
-                    <Link href="/week-1/" className="btn-primary">
-                      <span>Continue to Week 1</span>
-                      <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
-                    </Link>
-                  ) : (
-                    <Link href="/chords/" className="btn-primary">
-                      <span>Open 10 open chords</span>
-                      <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
-                    </Link>
-                  )
+                  <Link href={nextLesson ? lessonHref(nextLesson.id) : "/songbook/"} className="btn-primary">
+                    <span>{nextLesson ? `Continue to ${nextLesson.stage}` : "Open your songbook"}</span>
+                    <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
+                  </Link>
                 ) : (
                   <button
                     type="button"
@@ -481,7 +452,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     className="btn-primary"
                   >
                     <span>
-                      {next ? "Next step" : home ? "Finish Stage 0" : "Finish Week 1"}
+                      {next ? "Next step" : `Finish ${lesson.stage}`}
                     </span>
                     <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
                   </button>
@@ -499,13 +470,13 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
         <section className="mt-20 border-t border-[var(--line)] pt-12">
           <div className="shell-wrap flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-2">
-              <p className="type-meta">Next reference</p>
+              <p className="type-meta">Your recordings and lyrics</p>
               <h2 className="type-h3 text-[var(--ink)]">
-                Try moving from Em to Asus2, C, G, and D
+                Return to the song you’re making
               </h2>
             </div>
-            <Link href="/chords/" className="btn-secondary w-full sm:w-auto">
-              <span>Open 10 open chords</span>
+            <Link href="/songbook/" className="btn-secondary w-full sm:w-auto">
+              <span>Open your songbook</span>
               <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
             </Link>
           </div>

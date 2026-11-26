@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Check, Mic, Square } from "lucide-react";
 import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
+import { audioExtension } from "../lib/studio-audio";
 
 type TakeId = "rhythm-a" | "rhythm-b" | "hook";
 export type Rhythm = Exclude<TakeId, "hook">;
@@ -246,8 +247,10 @@ export function Recordings({
             caption,
           });
           if (!take) throw new Error("Unsupported recording format.");
-          takes[id].save(take);
-          finish("Take saved in this browser and ready to play back.");
+          const saved = takes[id].save(take);
+          finish(saved
+            ? "Take saved in this browser and ready to play back."
+            : "This take is playable now but could not be saved for your next visit.");
         } catch {
           if (request === operation.current) finish("The take could not be read. Try recording again.");
         }
@@ -482,5 +485,34 @@ function TakeSlot({
         </p>
       )}
     </div>
+  );
+}
+
+export function LegacyTakeShelf() {
+  const takeA = useLocalValue<Take | null>({ key: "take:rhythm-a", initial: null, parse: parseTake });
+  const takeB = useLocalValue<Take | null>({ key: "take:rhythm-b", initial: null, parse: parseTake });
+  const hook = useLocalValue<Take | null>({ key: "take:hook", initial: null, parse: parseTake });
+  const saved = [
+    { key: "rhythm-a", title: "First rhythm A", take: takeA.value },
+    { key: "rhythm-b", title: "First rhythm B", take: takeB.value },
+    { key: "hook", title: "Stage 0 hook", take: hook.value },
+  ].filter(({ take }) => take !== null);
+  if (!saved.length) return null;
+
+  return (
+    <section aria-labelledby="legacy-takes" className="space-y-4 border-t border-[var(--line)] pt-5">
+      <h2 id="legacy-takes" className="text-[16px] font-medium">From your first session</h2>
+      {saved.map(({ key, title, take }) => {
+        if (!take) return null;
+        const type = take.audio.slice(5, take.audio.indexOf(";"));
+        return (
+          <div key={key} className="space-y-2">
+            <h3 className="text-[14px]">{title}</h3>
+            <audio className="studio-audio w-full" controls preload="metadata" src={take.audio} aria-label={`${title} playback`} />
+            <a className="ui-link min-h-11 text-[14px]" href={take.audio} download={`firstsong-${key}.${audioExtension(type)}`}>Download take</a>
+          </div>
+        );
+      })}
+    </section>
   );
 }

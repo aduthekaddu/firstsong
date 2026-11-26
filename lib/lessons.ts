@@ -92,7 +92,7 @@ export const weekOne: Lesson = {
     },
     {
       id: "memo", kind: "practice", title: "Make a four-bar memo", minutes: 4,
-      instruction: "Play four groups of four beats as you sing or say your line. Save a four-bar recording and write down your lyric.",
+      instruction: "Choose a tempo you can comfortably follow. After the count-in, play four groups of four beats and sing or say your line. A single Em on beat one is enough.",
       tip: stalls.coordination,
     },
   ],
@@ -107,8 +107,8 @@ export const course: readonly Lesson[] = [
     id: "week-2", stage: "Week 2", title: "Accompany a verse",
     objective: "Keep the beat while you change chords and speak a verse.",
     steps: [
-      { id: "change", kind: "practice", title: "Change to a second chord", minutes: 5, instruction: "Try Asus2. Practice the change on its own, then give each chord a full bar of four beats." },
-      { id: "scene", kind: "practice", title: "Speak a four-line scene", minutes: 5, instruction: "Mark the words you stress. Speak the scene in time and leave room to breathe." },
+      { id: "change", kind: "practice", title: "Change to a second chord", minutes: 5, instruction: "Try Asus2. Put your index finger on the second fret of D and your middle finger on the second fret of G. Leave A open and start your strum there. Practice the change on its own, then give each chord a full bar of four beats." },
+      { id: "scene", kind: "practice", title: "Speak a four-line scene", minutes: 5, instruction: "Write four lines describing a place and one thing that happened there. Speak each line over two four-beat bars. Leave breathing room and alternate Em and Asus2 if the change feels comfortable." },
     ],
     checkpoint: "Keep an eight-bar verse and chord sheet. Check that you can make one clean change and keep the pulse.",
     stallResponses: [stalls.buzz, stalls.stress, stalls.resume],
@@ -118,7 +118,7 @@ export const course: readonly Lesson[] = [
     objective: "Make a chorus a listener can tell apart from the verse.",
     steps: [
       { id: "contrast", kind: "practice", title: "Change one thing in the chorus", minutes: 5, instruction: "Pick a higher resting note, a longer title note, or a fuller strum." },
-      { id: "rhyme", kind: "practice", title: "Listen to two rhymes", minutes: 5, instruction: "Compare two rhymes by ear. Replace one vague phrase with a detail from the verse." },
+      { id: "rhyme", kind: "practice", title: "Listen to two rhymes", minutes: 5, instruction: "Try two different last words out loud and use the one that sounds like something you would say. Then record one short verse followed by your chorus and check that you can hear where the chorus begins." },
     ],
     checkpoint: "Keep a verse and chorus a listener can tell apart. Use this as your first personal checkpoint.",
     stallResponses: [stalls.blank, stalls.stress, stalls.resume],
@@ -128,7 +128,7 @@ export const course: readonly Lesson[] = [
     objective: "Play your song from beginning to end.",
     steps: [
       { id: "form", kind: "practice", title: "Put the sections in order", minutes: 5, instruction: "Use verse, chorus, verse, chorus. Add a bridge if you want. Change the time, place, or perspective in verse two and keep the hook." },
-      { id: "finish", kind: "practice", title: "Practice the start and end", minutes: 5, instruction: "Count in and choose how you want the last note or chord to end." },
+      { id: "finish", kind: "practice", title: "Practice the start and end", minutes: 5, instruction: "Choose an ending and practice it twice. Count in out loud, then record the entire song without restarting for small mistakes." },
     ],
     checkpoint: "Keep a start-to-finish take and a one-page chord and lyric sheet.",
     stallResponses: [stalls.coordination, stalls.perfectionism, stalls.resume],
@@ -138,7 +138,7 @@ export const course: readonly Lesson[] = [
     objective: "Decide where the song gets louder or softer and revise one thing by ear.",
     steps: [
       { id: "map", kind: "practice", title: "Mark where the strumming changes", minutes: 5, instruction: "Choose where the strumming gets lighter or stops. Check that the speed and singing range feel comfortable." },
-      { id: "versions", kind: "practice", title: "Record two chorus versions", minutes: 5, instruction: "Listen to both chorus takes and adjust one thing. Save both takes." },
+      { id: "versions", kind: "practice", title: "Record two chorus versions", minutes: 5, instruction: "Record one chorus as you usually play it. On the second take, change just one thing. Listen back to both and write down the version or detail you want to keep." },
     ],
     checkpoint: "Keep both chorus takes and a map of where you changed the strumming.",
     stallResponses: [stalls.perfectionism, stalls.resume],
@@ -147,8 +147,8 @@ export const course: readonly Lesson[] = [
     id: "week-6", stage: "Week 6", title: "Record and export",
     objective: "Make a playable recording and back it up.",
     steps: [
-      { id: "test", kind: "practice", title: "Test your sound", minutes: 5, instruction: "Find a quiet room, record a short test, and check that you can hear the guitar and voice clearly." },
-      { id: "export", kind: "practice", title: "Record and trim a full take", minutes: 5, instruction: "Count in and play the whole song. Record voice and guitar separately if needed. Trim the recording and make a backup." },
+      { id: "test", kind: "practice", title: "Test your sound", minutes: 5, instruction: "Find a quiet room. Prop the phone up without covering its microphone, record a few seconds, then listen back and adjust your distance before the final take." },
+      { id: "export", kind: "practice", title: "Record and trim a full take", minutes: 5, instruction: "Count in and play the whole song. If singing and playing together is hard, strum once at the start of each bar or sing over the chord ringing out. Listen to the take, trim any extra silence, then download your audio and lyric sheet." },
     ],
     checkpoint: "Keep a playable audio file, a lyric and chord sheet, and a backup.",
     stallResponses: [stalls.coordination, stalls.perfectionism, stalls.resume],
@@ -164,3 +164,7 @@ export const course: readonly Lesson[] = [
     stallResponses: [stalls.perfectionism, stalls.resume],
   },
 ];
+
+export function lessonHref(id: string) {
+  return id === "stage-0" ? "/#lesson" : `/${id}/`;
+}
