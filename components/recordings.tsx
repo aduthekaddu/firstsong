@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Check, Mic, Square } from "lucide-react";
 import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
-import { audioExtension, normalizeAudioDataUrl } from "../lib/studio-audio";
+import { audioExtension, hasRecordingInput, interruptedTakeMessage, normalizeAudioDataUrl } from "../lib/studio-audio";
 
 type TakeId = "rhythm-a" | "rhythm-b" | "hook";
 export type Rhythm = Exclude<TakeId, "hook">;
@@ -144,12 +144,17 @@ export function Recordings({
     onBusy(false);
   }
 
+  function interrupt() {
+    operation.current++;
+    if (recorder.current?.state === "recording") recorder.current.stop();
+    releaseMic();
+    finish(interruptedTakeMessage);
+  }
+
   function stop(id: TakeId) {
     if (recorder.current?.state === "recording") {
-      if (!stream.current?.getAudioTracks().some((track) => track.readyState === "live")) {
-        operation.current++;
-        releaseMic();
-        finish("The recording was interrupted. Any earlier take is unchanged.");
+      if (!hasRecordingInput(stream.current)) {
+        interrupt();
         return;
       }
       saveRequested.current = true;
@@ -210,6 +215,10 @@ export function Recordings({
         return;
       }
       stream.current = input;
+      if (!hasRecordingInput(input)) {
+        interrupt();
+        return;
+      }
       const mimeType = [
         "audio/webm;codecs=opus",
         "audio/mp4",
@@ -218,6 +227,9 @@ export function Recordings({
 
       const recording = new MediaRecorder(input, { mimeType, audioBitsPerSecond: 32_000 });
       recorder.current = recording;
+      input.getAudioTracks().forEach((track) => track.addEventListener("mute", () => {
+        if (request === operation.current && !saveRequested.current && recording.state === "recording") interrupt();
+      }, { once: true }));
       const chunks: Blob[] = [];
       const started = performance.now();
       let failed = false;
@@ -236,7 +248,7 @@ export function Recordings({
         if (request !== operation.current || failed) return;
         releaseMic();
         if (!saveRequested.current) {
-          finish("The recording was interrupted. Any earlier take is unchanged.");
+          finish(interruptedTakeMessage);
           return;
         }
         const blob = new Blob(chunks, { type: recording.mimeType || chunks[0]?.type });

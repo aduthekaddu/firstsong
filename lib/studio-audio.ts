@@ -1,6 +1,12 @@
 export type StudioTake = { blob: Blob; seconds: number; createdAt: number };
 type StoredTake = Omit<StudioTake, "blob"> & { bytes: ArrayBuffer; type: string };
 
+export const interruptedTakeMessage = "The recording was interrupted. Any earlier take is unchanged.";
+
+export function hasRecordingInput(stream: MediaStream | null): boolean {
+  return stream?.getAudioTracks().some((track) => track.readyState === "live" && !track.muted) ?? false;
+}
+
 const volatile = new Map<string, StudioTake>();
 
 function openTakes(): Promise<IDBDatabase> {

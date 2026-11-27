@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Mic, Share, Square } from "lucide-react";
 import { scheduleMetronomeClick } from "../lib/sound";
-import { audioExtension, downloadFile, encodeWav, formatClock, getTake, saveTake, type StudioTake as Take } from "../lib/studio-audio";
+import { audioExtension, downloadFile, encodeWav, formatClock, getTake, hasRecordingInput, interruptedTakeMessage, saveTake, type StudioTake as Take } from "../lib/studio-audio";
 import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
-const interrupted = "The recording was interrupted. Any earlier take is unchanged.";
 
 export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, hideEmpty = false }: {
   spec: TakeSpec; onBusy?: (busy: boolean) => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean;
@@ -75,11 +74,16 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
     onBusy?.(false);
   }
 
+  function interrupt() {
+    epoch.current++;
+    if (recorder.current?.state === "recording") recorder.current.stop();
+    finish(interruptedTakeMessage);
+  }
+
   function stop() {
     if (phaseRef.current === "record" && recorder.current?.state === "recording") {
-      if (!mic.current?.getAudioTracks().some((track) => track.readyState === "live")) {
-        epoch.current++;
-        finish(interrupted);
+      if (!hasRecordingInput(mic.current)) {
+        interrupt();
         return;
       }
       change("save");
@@ -141,7 +145,7 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
         // MediaRecorder also stops itself when all input tracks end. Do not
         // replace a saved take with the partial data from that interruption.
         if (phaseRef.current !== "save") {
-          finish(interrupted);
+          finish(interruptedTakeMessage);
           return;
         }
         const next = {
@@ -165,12 +169,15 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
       };
       function record() {
         if (request !== epoch.current) return;
-        if (!stream.getAudioTracks().some((track) => track.readyState === "live")) {
-          epoch.current++;
-          finish(interrupted);
+        if (!hasRecordingInput(stream)) {
+          interrupt();
           return;
         }
         try {
+          // A live but muted track still produces silence in MediaRecorder.
+          stream.getAudioTracks().forEach((track) => track.addEventListener("mute", () => {
+            if (request === epoch.current && phaseRef.current === "record") interrupt();
+          }, { once: true }));
           started = performance.now();
           capture.start();
           change("record");

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
 async function installTone(page: Page) {
@@ -18,6 +18,7 @@ async function installTone(page: Page) {
       document.documentElement.dataset.testAudioState = audio.state;
       await audio.resume();
       document.documentElement.dataset.testAudioState = audio.state;
+      Object.defineProperty(window, "firstsongTestAudioTrack", { configurable: true, value: input.stream.getAudioTracks()[0] });
       return input.stream;
     };
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
@@ -29,6 +30,28 @@ async function installTone(page: Page) {
       });
       return start.call(this, timeslice);
     };
+  });
+}
+
+const interrupted = "The recording was interrupted. Any earlier take is unchanged.";
+
+async function muteAndUnmute(page: Page) {
+  const before = await page.evaluate(() => {
+    const track: MediaStreamTrack = Object.getOwnPropertyDescriptor(window, "firstsongTestAudioTrack")?.value;
+    const state = track.readyState;
+    Object.defineProperty(track, "muted", { configurable: true, value: true });
+    track.dispatchEvent(new Event("mute"));
+    Object.defineProperty(track, "muted", { configurable: true, value: false });
+    track.dispatchEvent(new Event("unmute"));
+    return state;
+  });
+  expect(before).toBe("live");
+}
+
+function digest(player: Locator) {
+  return player.evaluate(async (audio: HTMLAudioElement) => {
+    const bytes = await (await fetch(audio.src)).arrayBuffer();
+    return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
   });
 }
 
@@ -57,9 +80,16 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
     const bytes = await page.locator("html").getAttribute("data-test-recorded-bytes");
     throw new Error(`Could not save the WebKit recording. Recorded bytes: ${bytes}. Recorder: ${status}. Page errors: ${errors.join("; ")}`, { cause: error });
   }
-  await page.reload();
   const playback = page.getByLabel("Final song playback");
   await expect(playback).toHaveAttribute("src", /^blob:/);
+  const original = await digest(playback);
+  await page.getByRole("button", { name: "Record final song again", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Stop recording", exact: true })).toBeVisible();
+  await muteAndUnmute(page);
+  await expect(page.getByText(interrupted)).toBeVisible();
+  await page.reload();
+  await expect(playback).toHaveAttribute("src", /^blob:/);
+  expect(await digest(playback)).toEqual(original);
   await expect.poll(() => playback.evaluate((element: HTMLAudioElement) => element.readyState)).toBeGreaterThan(0);
 
   await page.getByText("Trim the edges", { exact: true }).click();
@@ -94,9 +124,16 @@ test("WebKit saves a Stage 0 hook and plays it after reload", async ({ page, con
   await start.click();
   await page.getByRole("button", { name: /Stop recording \(1s\)/ }).click();
   await expect(page.getByText("Take saved in this browser and ready to play back.")).toBeVisible();
-  await page.reload();
   const playback = page.getByLabel("Your hook playback");
   await expect(playback).toHaveAttribute("src", /^data:audio\//);
+  const original = await digest(playback);
+  await page.getByRole("button", { name: "Record Your hook again", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Stop recording \(\d+s\)/ })).toBeVisible();
+  await muteAndUnmute(page);
+  await expect(page.getByText(interrupted)).toBeVisible();
+  await page.reload();
+  await expect(playback).toHaveAttribute("src", /^data:audio\//);
+  expect(await digest(playback)).toEqual(original);
   await playback.evaluate(async (audio: HTMLAudioElement) => {
     audio.muted = true;
     await audio.play();
