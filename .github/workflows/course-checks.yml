@@ -34,3 +34,23 @@ jobs:
       - run: ./node_modules/.bin/playwright install --with-deps chromium --only-shell
       - name: Run the course journey with a simulated microphone
         run: npm run test:e2e -- --workers=1
+
+  webkit:
+    name: WebKit audio on macOS
+    if: ${{ github.event.repository.private == false }}
+    runs-on: macos-15
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_BASE_PATH: /firstsong
+      - run: ./node_modules/.bin/playwright install webkit
+      - run: npm run test:e2e -- --config=playwright.webkit.config.ts --workers=1
