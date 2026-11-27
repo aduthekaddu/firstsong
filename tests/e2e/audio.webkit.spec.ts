@@ -1,15 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
-test("WebKit records, reloads and exports non-silent audio", async ({ page }) => {
+test("WebKit records, reloads and exports non-silent audio", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("week-6/");
+  await page.getByRole("button", { name: "Next step" }).click();
+  await expect(page.getByRole("button", { name: "Record final song", exact: true })).toBeEnabled();
   await page.evaluate(() => {
     // Substitute the input signal only: the app still uses the real recorder,
     // storage, playback and WAV encoder in this browser.
     const getUserMedia = async () => {
+      document.documentElement.dataset.testAudioState = "input requested";
       const audio = new AudioContext();
       const input = audio.createMediaStreamDestination();
       const tone = audio.createOscillator();
@@ -23,10 +27,9 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page }) =>
       document.documentElement.dataset.testAudioState = audio.state;
       return input.stream;
     };
-    Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: getUserMedia });
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
+    document.documentElement.dataset.testAudioState = "test input installed";
   });
-
-  await page.getByRole("button", { name: "Next step" }).click();
   await page.getByRole("button", { name: "Record final song", exact: true }).click();
   try {
     await expect(page.getByText(/0:02 \/ /)).toBeVisible();
