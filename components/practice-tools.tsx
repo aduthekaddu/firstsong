@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Clock, Mic, MicOff, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { em, guitarStrings } from "../lib/chords";
-import { detectGuitarPitch } from "../lib/pitch";
+import { detectGuitarPitch, guitarAnalyserWindow } from "../lib/pitch";
 import { openAudio, pluckString, scheduleMetronomeClick } from "../lib/sound";
 import { ticker } from "../lib/ticker";
 import { ChordDiagram } from "./chord-diagram";
@@ -110,7 +110,7 @@ export function Tuner() {
       micCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = guitarAnalyserWindow(ctx.sampleRate);
       source.connect(analyser);
 
       setMicActive(true);

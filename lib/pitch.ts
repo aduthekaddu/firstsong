@@ -11,6 +11,19 @@ export type PitchReading = {
 };
 
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"] as const;
+const MIN_PITCH_HZ = 65;
+const MAX_PITCH_HZ = 440;
+const MIN_WINDOW = 2048;
+const MAX_WINDOW = 32768;
+
+export function guitarAnalyserWindow(sampleRate: number): number {
+  // YIN compares the first half-window with delayed samples. Leave room for
+  // a whole period of the lowest expected pitch plus its interpolation samples.
+  const needed = 2 * (Math.ceil(sampleRate / MIN_PITCH_HZ) + 2);
+  let window = MIN_WINDOW;
+  while (window < needed && window < MAX_WINDOW) window *= 2;
+  return window;
+}
 
 /**
  * Pure TypeScript YIN cumulative mean normalized difference (CMNDF) pitch detector
@@ -32,8 +45,8 @@ export function detectGuitarPitch(
   if (rms < 0.012) return null;
 
   const half = n >> 1;
-  const minTau = Math.max(16, Math.floor(sampleRate / 440));
-  const maxTau = Math.min(half - 2, Math.ceil(sampleRate / 65));
+  const minTau = Math.max(16, Math.floor(sampleRate / MAX_PITCH_HZ));
+  const maxTau = Math.min(half - 2, Math.ceil(sampleRate / MIN_PITCH_HZ));
   if (maxTau <= minTau || diffScratch.length < maxTau + 2) return null;
 
   // Step 1: Difference function d(tau)
@@ -95,7 +108,7 @@ export function detectGuitarPitch(
   const refinedTau = denom !== 0 ? bestTau + (prev - next) / denom : bestTau;
 
   const hz = sampleRate / refinedTau;
-  if (!Number.isFinite(hz) || hz < 65 || hz > 440) return null;
+  if (!Number.isFinite(hz) || hz < MIN_PITCH_HZ || hz > MAX_PITCH_HZ) return null;
 
   // Chromatic pitch calculation (A4 = 440 Hz, MIDI 69)
   const midiFloat = 69 + 12 * Math.log2(hz / 440);
