@@ -129,6 +129,35 @@ test("mic denial does not strand the learner", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
 });
 
+test("mobile navigation and commands keep an active take on the recording page", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("week-6/");
+  await page.getByRole("button", { name: "Record sound check", exact: true }).click();
+  const stop = page.getByRole("button", { name: "Stop recording", exact: true });
+  await expect(stop).toBeVisible();
+  const openMenu = page.getByRole("button", { name: "Open navigation menu" });
+  const menu = page.getByRole("dialog", { name: "Mobile navigation" });
+  await openMenu.click();
+  await menu.getByRole("link", { name: "Songbook" }).click();
+  await expect(menu).not.toBeVisible();
+  const warning = page.getByText("Finish the recording before leaving this lesson.");
+  await expect(warning).toBeVisible();
+  await expect(page).toHaveURL(/\/firstsong\/week-6\/$/);
+
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Command index" });
+  await palette.getByRole("button", { name: /Open Stage 0/ }).click();
+  await expect(palette).not.toBeVisible();
+  await expect(page).toHaveURL(/\/firstsong\/week-6\/$/);
+  await stop.click();
+  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  await expect(warning).not.toBeVisible();
+  await openMenu.click();
+  await menu.getByRole("link", { name: "Songbook" }).click();
+  await expect(page.getByLabel("Sound check playback")).toHaveAttribute("src", /^blob:/);
+});
+
 async function enableMicDisconnection(page: Page) {
   await page.addInitScript(() => {
     const media = navigator.mediaDevices;

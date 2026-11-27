@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import Link from "next/link";
+import { RecordingLink as Link } from "./recording-navigation";
 import { Download } from "lucide-react";
 import { buildSongSheet, downloadFile } from "../lib/studio-audio";
 import { emptySong, parseSong, studioTakes, type SongField, type TakeSpec } from "../lib/song-project";

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { RecordingLink as Link } from "./recording-navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ArrowDown, ArrowRight } from "lucide-react";

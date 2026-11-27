@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, HelpCircle } from "lucide-react";
 import { course, lessonHref, type Lesson, type LessonStep } from "../lib/lessons";
 import { useLocalValue } from "../lib/local-value";
@@ -15,6 +14,7 @@ import {
   Tuner,
 } from "./practice-tools";
 import { Recordings, type Rhythm } from "./recordings";
+import { RecordingLink as Link, useRecordingNavigation } from "./recording-navigation";
 import { SongWorkbench } from "./song-workbench";
 
 type Progress = { current: string; visited: string[]; finished: boolean };
@@ -98,6 +98,11 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
     parse: parseRhythm,
   });
   const [busy, setBusy] = useState(false);
+  const { setRecording } = useRecordingNavigation();
+  const handleRecordingBusy = useCallback((active: boolean) => {
+    setBusy(active);
+    setRecording(active);
+  }, [setRecording]);
   const [returnLesson, setReturnLesson] = useState<ReturnType<typeof getReturnLesson>>(null);
 
   useEffect(() => {
@@ -376,7 +381,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                         line={line.value}
                         rhythm={rhythm.value}
                         onRhythm={rhythm.save}
-                        onBusy={setBusy}
+                        onBusy={handleRecordingBusy}
                       />
                     )}
                     {!home && <SongWorkbench lessonId={lesson.id} stepId="checkpoint" />}
@@ -438,7 +443,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                           line={line.value}
                           rhythm={rhythm.value}
                           onRhythm={rhythm.save}
-                          onBusy={setBusy}
+                          onBusy={handleRecordingBusy}
                         />
                       </div>
                     )}
@@ -452,7 +457,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
 
                     {step.kind === "practice" && (
                       <SongWorkbench lessonId={lesson.id} stepId={step.id} firstLine={line.value}
-                        oldNotes={weekOneNotes.value} onBusy={setBusy} />
+                        oldNotes={weekOneNotes.value} onBusy={handleRecordingBusy} />
                     )}
 
                     <PracticeTimer minutes={step.minutes} />

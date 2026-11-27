@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { RecordingLink as Link } from "./recording-navigation";
 import { ArrowRight } from "lucide-react";
 import { course, lessonHref } from "../lib/lessons";
 
