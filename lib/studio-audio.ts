@@ -1,4 +1,5 @@
 export type StudioTake = { blob: Blob; seconds: number; createdAt: number };
+type StoredTake = Omit<StudioTake, "blob"> & { bytes: ArrayBuffer; type: string };
 
 const volatile = new Map<string, StudioTake>();
 
@@ -33,12 +34,20 @@ async function transact<T>(
 
 export async function getTake(id: string): Promise<StudioTake | null> {
   if (volatile.has(id)) return volatile.get(id) ?? null;
-  return (await transact("readonly", (store) => store.get(id))) ?? null;
+  const saved: StudioTake | StoredTake | undefined = await transact("readonly", (store) => store.get(id));
+  if (!saved) return null;
+  if ("blob" in saved) return saved;
+  const { bytes, type, seconds, createdAt } = saved;
+  return { blob: new Blob([bytes], { type }), seconds, createdAt };
 }
 
 export async function saveTake(id: string, take: StudioTake) {
   volatile.set(id, take);
-  await transact("readwrite", (store) => store.put(take, id));
+  // Store plain bytes rather than relying on IndexedDB's Blob backing store.
+  // Read the Blob before opening a transaction, which may auto-close on await.
+  const { blob, seconds, createdAt } = take;
+  const stored: StoredTake = { bytes: await blob.arrayBuffer(), type: blob.type, seconds, createdAt };
+  await transact("readwrite", (store) => store.put(stored, id));
   if (volatile.get(id) === take) volatile.delete(id);
 }
 

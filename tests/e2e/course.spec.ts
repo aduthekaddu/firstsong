@@ -159,6 +159,34 @@ test("mic denial does not strand the learner", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
 });
 
+test("the songbook opens a take saved in the previous storage format", async ({ page }) => {
+  await page.goto("./");
+  await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("firstsong-studio", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("takes");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction("takes", "readwrite");
+      const blob = new Blob([new Uint8Array([7, 3, 9])], { type: "audio/webm" });
+      tx.objectStore("takes").put({ blob, seconds: 1, createdAt: 1 }, "final");
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  });
+  await page.goto("songbook/");
+  const player = page.getByLabel("Final song playback");
+  await expect(player).toHaveAttribute("src", /^blob:/);
+  const original = await player.evaluate(async (el: HTMLAudioElement) => {
+    const file = await (await fetch(el.src)).blob();
+    return { type: file.type, bytes: Array.from(new Uint8Array(await file.arrayBuffer())) };
+  });
+  expect(original).toEqual({ type: "audio/webm", bytes: [7, 3, 9] });
+});
+
 test("mobile navigation and commands keep an active take on the recording page", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
