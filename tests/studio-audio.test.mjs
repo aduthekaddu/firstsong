@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { audioExtension, buildSongSheet, encodeWav, formatClock, getTake, saveTake } from "../lib/studio-audio.ts";
+import { audioExtension, buildSongSheet, encodeWav, formatClock, getTake, normalizeAudioDataUrl, saveTake } from "../lib/studio-audio.ts";
 import { emptySong, parseSong, studioTakes } from "../lib/song-project.ts";
+
+test("audio data URLs normalize browser MIME spacing without changing audio bytes", () => {
+  const plain = "data:audio/webm;codecs=opus;base64,AaBb+g==";
+  assert.equal(normalizeAudioDataUrl(plain), plain);
+  assert.equal(normalizeAudioDataUrl("data:audio/webm; codecs=opus; base64,AaBb+g=="), plain);
+  assert.equal(normalizeAudioDataUrl("data:text/html; base64,AaBb+g=="), null);
+  assert.equal(normalizeAudioDataUrl("data:audio/webm; base64,Aa Bb+g=="), null);
+});
 
 test("WAV trim uses sample boundaries, interleaves stereo and clips safely", async () => {
   const blob = encodeWav([new Float32Array([0, -1, 2, 0]), new Float32Array([0, 1, -2, 0])], 4, 0.25, 0.75);

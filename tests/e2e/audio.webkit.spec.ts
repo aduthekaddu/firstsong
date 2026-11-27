@@ -1,14 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
-test("WebKit records, reloads and exports non-silent audio", async ({ page, context }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await context.grantPermissions(["microphone"]);
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("week-6/");
-  await page.getByRole("button", { name: "Next step" }).click();
-  await expect(page.getByRole("button", { name: "Record final song", exact: true })).toBeEnabled();
+async function installTone(page: Page) {
   await page.evaluate(() => {
     // Substitute the input signal only: the app still uses the real recorder,
     // storage, playback and WAV encoder in this browser.
@@ -37,6 +30,17 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
       return start.call(this, timeslice);
     };
   });
+}
+
+test("WebKit records, reloads and exports non-silent audio", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("week-6/");
+  await page.getByRole("button", { name: "Next step" }).click();
+  await expect(page.getByRole("button", { name: "Record final song", exact: true })).toBeEnabled();
+  await installTone(page);
   await page.getByRole("button", { name: "Record final song", exact: true }).click();
   try {
     await expect(page.getByText(/0:02 \/ /)).toBeVisible();
@@ -76,4 +80,26 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
     peak = Math.max(peak, Math.abs(wav.readInt16LE(offset)));
   }
   expect(peak).toBeGreaterThan(256);
+});
+
+
+test("WebKit saves a Stage 0 hook and plays it after reload", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("./#lesson");
+  await page.getByRole("navigation", { name: "Session steps" }).getByRole("button", { name: /Record your hook/i }).click();
+  const start = page.getByRole("button", { name: "Record Your hook", exact: true });
+  await expect(start).toBeEnabled();
+  await installTone(page);
+  await start.click();
+  await page.getByRole("button", { name: /Stop recording \(1s\)/ }).click();
+  await expect(page.getByText("Take saved in this browser and ready to play back.")).toBeVisible();
+  await page.reload();
+  const playback = page.getByLabel("Your hook playback");
+  await expect(playback).toHaveAttribute("src", /^data:audio\//);
+  await playback.evaluate(async (audio: HTMLAudioElement) => {
+    audio.muted = true;
+    await audio.play();
+  });
+  await expect.poll(() => playback.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.05);
 });

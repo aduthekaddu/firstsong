@@ -62,6 +62,15 @@ export function audioExtension(type: string) {
   return "audio";
 }
 
+export function normalizeAudioDataUrl(value: string): string | null {
+  // WebKit can emit parameters such as "; codecs=opus". Normalize the header
+  // only; keep both the audio type allowlist and the original encoded bytes.
+  const match = /^(data:audio\/(?:webm|mp4|ogg|aac|wav|x-wav|mpeg)(?:;[ \t]*[\w=,.+-]+)*;[ \t]*base64,)([a-z\d+/]+=*)$/i.exec(value);
+  if (!match) return null;
+  const header = match[1].replace(/[ \t]+/g, "");
+  return header === match[1] ? value : header + match[2];
+}
+
 export function encodeWav(channels: readonly Float32Array[], rate: number, from: number, to: number) {
   if (!channels.length || channels.some((ch) => ch.length !== channels[0].length) || !Number.isInteger(rate) || rate <= 0) {
     throw new Error("Invalid audio data.");

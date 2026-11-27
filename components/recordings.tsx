@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Check, Mic, Square } from "lucide-react";
 import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
-import { audioExtension } from "../lib/studio-audio";
+import { audioExtension, normalizeAudioDataUrl } from "../lib/studio-audio";
 
 type TakeId = "rhythm-a" | "rhythm-b" | "hook";
 export type Rhythm = Exclude<TakeId, "hook">;
@@ -29,15 +29,8 @@ const defaultCaptions: Record<TakeId, string> = {
 
 function parseTake(value: unknown): Take | null {
   if (typeof value !== "object" || value === null) return null;
-  if (
-    !("audio" in value) ||
-    typeof value.audio !== "string" ||
-    !/^data:audio\/(?:webm|mp4|ogg|aac|wav|x-wav|mpeg)(?:;[\w=,.+-]+)*;base64,[a-z\d+/]+=*$/i.test(
-      value.audio
-    )
-  ) {
-    return null;
-  }
+  const audio = "audio" in value && typeof value.audio === "string" ? normalizeAudioDataUrl(value.audio) : null;
+  if (!audio) return null;
   if (
     !("seconds" in value) ||
     typeof value.seconds !== "number" ||
@@ -48,7 +41,7 @@ function parseTake(value: unknown): Take | null {
   }
   if (!("caption" in value) || typeof value.caption !== "string") return null;
   return {
-    audio: value.audio,
+    audio,
     seconds: value.seconds,
     caption: value.caption.slice(0, MAX_CAPTION_LENGTH),
   };
