@@ -520,3 +520,55 @@ test("the Stage 0 mic tuner uses the chosen physical string for peg direction", 
   await page.getByRole("button", { name: "Stop mic tuner" }).click();
   await expect(selector).toHaveCount(0);
 });
+
+test("a line-only Stage 0 backup works and independent songs never include the guided lyric", async ({ page, context }) => {
+  const original = "बारिश on the windowsill";
+  const edited = "बारिश on the empty steps";
+  const laterHook = "Clouds over the train yard";
+  await page.goto("./#lesson");
+  await goStep(page, "Write one line");
+  await page.getByLabel("Your concrete line").fill(original);
+  const book = await context.newPage();
+  await book.goto("songbook/");
+
+  const prepare = book.getByRole("button", { name: "Back up your song" });
+  const save = book.getByRole("button", { name: "Save ZIP" });
+  async function downloadBackup() {
+    const pending = book.waitForEvent("download");
+    await save.click();
+    const files = unzipSync(await readFile((await (await pending).path())!));
+    return {
+      sheet: strFromU8(files["lyrics-and-chords.txt"]),
+      manifest: JSON.parse(strFromU8(files["manifest.json"])),
+    };
+  }
+
+  await prepare.click();
+  const first = await downloadBackup();
+  expect(first.sheet).toContain(`Stage 0 first line\n${original}`);
+  expect(first.manifest.stageZero).toEqual({ firstLine: original, rhythm: null });
+  expect(first.manifest.recordings).toEqual([]);
+
+  await prepare.click();
+  await expect(save).toBeVisible();
+  await page.getByLabel("Your concrete line").fill(edited);
+  await expect(save).toHaveCount(0);
+  await page.goto("week-1/");
+  await goStep(page, "Find a title line");
+  await page.getByLabel("Title line").fill(laterHook);
+  await expect(book.getByText(laterHook, { exact: true })).toBeVisible();
+  await prepare.click();
+  const guided = await downloadBackup();
+  expect(guided.sheet).toContain(`Stage 0 first line\n${edited}`);
+  expect(guided.sheet).toContain(`Chorus\n${laterHook}`);
+  expect(guided.manifest.stageZero.firstLine).toBe(edited);
+  expect(guided.manifest.song.hook).toBe(laterHook);
+
+  await book.getByRole("button", { name: "New blank song" }).click();
+  await book.getByLabel("Song title").fill("Tin roof");
+  await prepare.click();
+  const independent = await downloadBackup();
+  expect(independent.manifest).not.toHaveProperty("stageZero");
+  expect(independent.sheet).not.toContain(edited);
+  expect(independent.sheet).not.toContain(laterHook);
+});

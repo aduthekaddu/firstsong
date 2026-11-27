@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
 import { studioTakes, type SongProject } from "../lib/song-project";
+import { stageZeroWritingKeys } from "../lib/stage-zero";
 import { writingTakeId } from "../lib/writing-room";
 import { downloadFile, subscribeToPageReturn, subscribeToTakeChanges } from "../lib/studio-audio";
 
@@ -20,7 +21,7 @@ export function SongBackup({ song, ready, recording, projectId }: { song: SongPr
       setPreparation((prior) => prior.kind === "idle" ? prior : { kind: "idle" });
     }
     function legacyChanged(event: StorageEvent) {
-      if (!projectId && event.storageArea === localStorage && (event.key === null || event.key.startsWith("firstsong:v1:take:"))) invalidate();
+      if (!projectId && event.storageArea === localStorage && (event.key === null || event.key.startsWith("firstsong:v1:take:") || stageZeroWritingKeys.includes(event.key))) invalidate();
     }
     const stopWatching = subscribeToTakeChanges((id) => { if (relevant.has(id)) invalidate(); });
     const stopPageReturn = subscribeToPageReturn(invalidate);

@@ -15,24 +15,16 @@ import {
   TapTrainer,
   Tuner,
 } from "./practice-tools";
-import { Recordings, type Rhythm } from "./recordings";
+import { Recordings } from "./recordings";
+import { firstLineKey, maxLineLength, parseFirstLine, parseRhythm, rhythmKey, type Rhythm } from "../lib/stage-zero";
 import { RecordingLink as Link, useRecordingNavigation } from "./recording-navigation";
 import { SongWorkbench } from "./song-workbench";
 
 const lastLessonKey = "firstsong:v1:last-course-lesson";
-const maxLineLength = 180;
 const maxNotesLength = 320;
-
-function parseLine(value: unknown) {
-  return typeof value === "string" ? value.slice(0, maxLineLength) : "";
-}
 
 function parseNotes(value: unknown) {
   return typeof value === "string" ? value.slice(0, maxNotesLength) : "";
-}
-
-function parseRhythm(value: unknown): Rhythm | null {
-  return value === "rhythm-a" || value === "rhythm-b" ? value : null;
 }
 
 function getReturnLesson(): { href: string; label: string } | null {
@@ -63,14 +55,14 @@ function getReturnLesson(): { href: string; label: string } | null {
 
 export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: boolean }) {
   const progress = useLessonProgress(lesson);
-  const line = useLocalValue({ key: "line", initial: "", parse: parseLine });
+  const line = useLocalValue({ key: firstLineKey, initial: "", parse: parseFirstLine });
   const weekOneNotes = useLocalValue({
     key: "week-1:notes",
     initial: "",
     parse: parseNotes,
   });
   const rhythm = useLocalValue<Rhythm | null>({
-    key: "rhythm",
+    key: rhythmKey,
     initial: null,
     parse: parseRhythm,
   });

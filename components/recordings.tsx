@@ -2,14 +2,15 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, Mic, Square } from "lucide-react";
+import { type Rhythm } from "../lib/stage-zero";
 import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
 import { audioExtension, hasRecordingInput, interruptedTakeMessage } from "../lib/studio-audio";
 
 import { legacyTakes, MAX_CAPTION_LENGTH, parseLegacyTake, type LegacyTake } from "../lib/legacy-takes";
 
-type TakeId = "rhythm-a" | "rhythm-b" | "hook";
-export type Rhythm = Exclude<TakeId, "hook">;
+type TakeId = Rhythm | "hook";
+
 
 type RecorderState =
   | { kind: "idle" }

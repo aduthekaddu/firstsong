@@ -206,13 +206,14 @@ export function formatClock(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-export function buildSongSheet(fields: { title: string; hook: string; verseOne: string; verseTwo: string; chorus: string; chords: string; ending: string; arrangement: string }) {
+export function buildSongSheet(fields: { title: string; hook: string; verseOne: string; verseTwo: string; chorus: string; chords: string; ending: string; arrangement: string }, firstLine = "") {
   return [
     fields.title.trim() || "Untitled song",
     "Form: verse 1 → chorus → verse 2 → chorus",
     ...([
       ["Chords", fields.chords], ["Verse 1", fields.verseOne], ["Chorus", fields.chorus || fields.hook],
       ["Verse 2", fields.verseTwo], ["Ending", fields.ending], ["Arrangement notes", fields.arrangement],
+      ["Stage 0 first line", firstLine],
     ].filter(([, value]) => value.trim()).map(([label, value]) => `${label}\n${value.trim()}`)),
   ].join("\n\n") + "\n";
 }

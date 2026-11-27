@@ -1,6 +1,7 @@
 import { strToU8, zipSync, type Zippable } from "fflate";
 import { legacyTakes, parseLegacyTake } from "./legacy-takes";
 import { studioTakes, type SongProject } from "./song-project";
+import { readStageZeroWriting } from "./stage-zero";
 import { audioExtension, buildSongSheet, getTake } from "./studio-audio";
 
 import { writingTake, writingTakeId } from "./writing-room";
@@ -12,8 +13,9 @@ type RecordingFile = {
 
 export async function buildSongBackup(song: SongProject, projectId?: string) {
   const recordings: RecordingFile[] = [];
+  const earlier = projectId ? null : readStageZeroWriting(localStorage);
   // Store already encoded audio without recompressing it and keep each original intact.
-  const files: Zippable = { "manifest.json": new Uint8Array(), "lyrics-and-chords.txt": strToU8(buildSongSheet(song)) };
+  const files: Zippable = { "manifest.json": new Uint8Array(), "lyrics-and-chords.txt": strToU8(buildSongSheet(song, earlier?.firstLine)) };
 
   for (const { id, label } of (projectId ? [] : legacyTakes)) {
     const stored = localStorage.getItem(`firstsong:v1:take:${id}`);
@@ -35,9 +37,11 @@ export async function buildSongBackup(song: SongProject, projectId?: string) {
     recordings.push({ id, label, file, mimeType, seconds: saved.seconds, createdAt: saved.createdAt });
   }
 
-  if (!recordings.length && !Object.values(song).some((value) => value.trim())) return null;
+  const hasEarlierWriting = earlier && (earlier.firstLine.trim() || earlier.rhythm);
+  if (!recordings.length && !hasEarlierWriting && !Object.values(song).some((value) => value.trim())) return null;
   files["manifest.json"] = strToU8(JSON.stringify({
-    format: "firstsong-song-backup", version: 1, exportedAt: new Date().toISOString(), song, recordings,
+    format: "firstsong-song-backup", version: 1, exportedAt: new Date().toISOString(), song,
+    ...(hasEarlierWriting ? { stageZero: earlier } : {}), recordings,
   }, null, 2) + "\n");
   const bytes = zipSync(files, { level: 0 });
   return { blob: new Blob([bytes], { type: "application/zip" }), takeCount: recordings.length };
