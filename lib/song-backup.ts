@@ -3,17 +3,19 @@ import { legacyTakes, parseLegacyTake } from "./legacy-takes";
 import { studioTakes, type SongProject } from "./song-project";
 import { audioExtension, buildSongSheet, getTake } from "./studio-audio";
 
+import { writingTake, writingTakeId } from "./writing-room";
+
 type RecordingFile = {
   id: string; label: string; file: string; mimeType: string; seconds: number;
   createdAt?: number; caption?: string;
 };
 
-export async function buildSongBackup(song: SongProject) {
+export async function buildSongBackup(song: SongProject, projectId?: string) {
   const recordings: RecordingFile[] = [];
   // Store already encoded audio without recompressing it and keep each original intact.
   const files: Zippable = { "manifest.json": new Uint8Array(), "lyrics-and-chords.txt": strToU8(buildSongSheet(song)) };
 
-  for (const { id, label } of legacyTakes) {
+  for (const { id, label } of (projectId ? [] : legacyTakes)) {
     const stored = localStorage.getItem(`firstsong:v1:take:${id}`);
     if (stored === null) continue;
     const saved = parseLegacyTake(JSON.parse(stored));
@@ -24,8 +26,8 @@ export async function buildSongBackup(song: SongProject) {
     files[file] = Uint8Array.from(atob(saved.audio.slice(comma + 1)), (character) => character.charCodeAt(0));
     recordings.push({ id: `stage-0-${id}`, label, file, mimeType, seconds: saved.seconds, caption: saved.caption });
   }
-  for (const { id, label } of Object.values(studioTakes)) {
-    const saved = await getTake(id);
+  for (const { id, label } of (projectId ? [writingTake] : Object.values(studioTakes))) {
+    const saved = await getTake(projectId ? writingTakeId(projectId) : id);
     if (!saved) continue;
     const mimeType = saved.blob.type;
     const file = `takes/${id}.${audioExtension(mimeType)}`;

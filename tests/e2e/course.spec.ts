@@ -363,3 +363,91 @@ test("an empty songbook explains what to back up rather than generating an empty
   await expect(page.getByText("There’s nothing to back up yet. Write a line or record a take first.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save ZIP" })).toHaveCount(0);
 });
+
+test("independent songs keep their own words and audio without changing the course", async ({ page, context }) => {
+  await page.setViewportSize({ width: 320, height: 760 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("week-1/");
+  await goStep(page, "Find a title line");
+  await page.getByLabel("Title line").fill("My original guided song");
+  await goStep(page, "Make a four-bar memo");
+  await page.getByRole("button", { name: "Finish Week 1" }).click();
+  await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
+
+  await page.goto("weeks-7-8/");
+  await next(page);
+  await page.getByRole("link", { name: "Start your next song" }).click();
+  await expect(page).toHaveURL(/\/songbook\/#new-song$/);
+  await page.getByRole("button", { name: "New blank song" }).click();
+  await expect(page).toHaveURL(/\/songbook\/write\/\?song=[a-f0-9]{32}$/);
+  const first = page.url();
+  const title = page.getByLabel("Song title");
+  await expect(title).toBeEnabled();
+  await expect(title).toHaveValue("");
+  await expect(page.getByLabel("First line")).toHaveValue("");
+  await title.fill("Station lights");
+  await page.getByLabel("First line").fill("The empty train passed me");
+  await page.getByLabel("Chords by section").fill("Em | Asus2");
+
+  await page.getByRole("button", { name: "Record demo take", exact: true }).click();
+  const stop = page.getByRole("button", { name: "Stop recording", exact: true });
+  await expect(stop).toBeVisible();
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
+  await expect(page.getByText("Finish the recording before leaving this lesson.")).toBeVisible();
+  await expect(page).toHaveURL(first);
+  await expect(page.getByText(/0:01 \/ /)).toBeVisible();
+  await stop.click();
+  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  await page.reload();
+  await expect(title).toHaveValue("Station lights");
+  const player = page.getByLabel("Demo take playback");
+  await expect(player).toHaveAttribute("src", /^blob:/);
+  const original = await player.evaluate(async (audio: HTMLAudioElement) =>
+    Array.from(new Uint8Array(await (await fetch(audio.src)).arrayBuffer())));
+
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  const save = page.getByRole("button", { name: "Save ZIP" });
+  await expect(save).toBeEnabled();
+  // A lyric edit invalidates the prepared copy instead of exporting stale text.
+  await page.getByLabel("First line").fill("The last train passed me");
+  await expect(save).toHaveCount(0);
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  const pending = page.waitForEvent("download");
+  await save.click();
+  const archive = await pending;
+  expect(archive.suggestedFilename()).toMatch(/^firstsong-station-lights-.*\.zip$/);
+  const files = unzipSync(await readFile((await archive.path())!));
+  const track = Object.keys(files).find((file) => file.startsWith("takes/recording."));
+  expect(track).toBeDefined();
+  expect(Array.from(files[track!])).toEqual(original);
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("The last train passed me");
+  expect(strFromU8(files["manifest.json"])).not.toContain("My original guided song");
+
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
+  await expect(page.getByText("My original guided song", { exact: true })).toBeVisible();
+  const saved = page.getByRole("link", { name: "Station lights" });
+  await expect(saved).toBeVisible();
+  await page.getByRole("button", { name: "New blank song" }).click();
+  await expect(title).toBeEnabled();
+  await expect(title).toHaveValue("");
+  expect(page.url()).not.toBe(first);
+  await expect(player).toHaveCount(0);
+  await title.fill("Sunday platform");
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
+  await expect(page.getByRole("link", { name: "Sunday platform" })).toBeVisible();
+  await saved.click();
+  await expect(title).toHaveValue("Station lights");
+  await expect(player).toHaveAttribute("src", /^blob:/);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.goto("week-1/#lesson");
+  await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
+  await expect(page.getByText("My original guided song", { exact: true })).toBeVisible();
+});
+
+test("opening a Writing Room URL on a different device does not create or share the song", async ({ page }) => {
+  await page.goto("songbook/write/?song=0123456789abcdef0123456789abcdef");
+  await expect(page.getByText(/This song isn’t saved in this browser/)).toBeVisible();
+  await expect(page.getByLabel("Song title")).toHaveCount(0);
+  await page.getByRole("link", { name: "Open your songbook", exact: true }).click();
+  await expect(page.getByRole("list", { name: "Independent songs" })).toHaveCount(0);
+});

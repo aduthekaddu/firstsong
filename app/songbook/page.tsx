@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFrame } from "../../components/site-frame";
+import { WritingProjects } from "../../components/writing-projects";
 import { SongWorkbench } from "../../components/song-workbench";
 
 export const metadata: Metadata = { title: "Your songbook" };
@@ -15,7 +16,11 @@ export default function SongbookPage() {
           <p className="type-lead mb-6 mt-4">From your first hum to your full song. Listen back, find your words, and back up a copy whenever you like.</p>
           <Link href="/#curriculum" className="ui-link text-[14px]">Back to the course</Link>
         </div>
-        <div className="mt-10 max-w-2xl"><SongWorkbench archive lessonId="songbook" stepId="archive" /></div>
+        <div className="mt-8 max-w-2xl"><WritingProjects /></div>
+        <section className="mt-10 max-w-2xl" aria-labelledby="guided-song-title">
+          <h2 id="guided-song-title" className="type-h3 text-[var(--ink)]">Your course song</h2>
+          <div className="mt-4"><SongWorkbench archive lessonId="songbook" stepId="archive" /></div>
+        </section>
       </section>
     </SiteFrame>
   );

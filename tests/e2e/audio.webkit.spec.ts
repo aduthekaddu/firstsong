@@ -153,3 +153,34 @@ test("WebKit saves a Stage 0 hook and plays it after reload", async ({ page, con
   });
   await expect.poll(() => playback.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.05);
 });
+
+test("WebKit keeps a separate Writing Room take across reopening and exports it", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("songbook/");
+  await page.getByRole("button", { name: "New blank song" }).click();
+  await expect(page.getByRole("heading", { name: "Writing room" })).toBeVisible();
+  await page.getByLabel("Song title").fill("Window open");
+  await page.getByLabel("Chorus").fill("Let the late light in");
+  await installTone(page);
+  await page.getByRole("button", { name: "Record demo take", exact: true }).click();
+  await expect(page.getByText(/0:01 \/ /)).toBeVisible();
+  await page.getByRole("button", { name: "Stop recording", exact: true }).click();
+  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  const playback = page.getByLabel("Demo take playback");
+  await expect(playback).toHaveAttribute("src", /^blob:/);
+  const original = await digest(playback);
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
+  await expect(page.getByLabel("Final song playback")).toHaveCount(0);
+  await page.getByRole("link", { name: "Window open" }).click();
+  await expect(page.getByLabel("Chorus")).toHaveValue("Let the late light in");
+  await expect(playback).toHaveAttribute("src", /^blob:/);
+  expect(await digest(playback)).toEqual(original);
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save ZIP" }).click();
+  const files = unzipSync(await readFile((await (await pending).path())!));
+  const take = Object.keys(files).find((name) => name.startsWith("takes/recording."));
+  expect(take).toBeDefined();
+  expect(Array.from(createHash("sha256").update(files[take!]).digest())).toEqual(original);
+});

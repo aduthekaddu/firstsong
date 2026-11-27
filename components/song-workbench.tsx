@@ -42,7 +42,7 @@ const exercises: Record<string, Exercise> = {
   "week-6:test": { takes: [studioTakes.soundcheck], cue: "Listen for a comfortable balance and clean sound. If the voice disappears, angle the phone closer to your mouth and try again." },
   "week-6:export": { takes: [studioTakes.final], sheet: true, backup: true },
   "weeks-7-8:layers": { takes: [studioTakes.guitar, studioTakes.vocal], cue: "These are separate passes, not a synced multitrack project. For overdubs, download them and use a recording program with headphones." },
-  "weeks-7-8:mix": { sheet: true, cue: "In your recording program, bring the vocal forward, then bring the guitar up until it supports it. Export a lossless master and a smaller listening copy. Open both files to check them before starting song two." },
+  "weeks-7-8:mix": { sheet: true, cue: "In your recording program, bring the vocal forward, then bring the guitar up until it supports it. Export a lossless master and a smaller listening copy. Open both files before starting your next song." },
 };
 
 const checkpoints: Record<string, Exercise> = {
@@ -98,6 +98,10 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
           </div>
           <Link href="/chords/" className="ui-link text-[14px]">Open the chord library</Link>
         </div>
+      )}
+
+      {lessonId === "weeks-7-8" && (stepId === "mix" || stepId === "checkpoint") && (
+        <Link href="/songbook/#new-song" className="ui-link text-[15px]">Start your next song</Link>
       )}
 
       {exercise.backup && <SongBackup key={active ?? "idle"} song={song.value} ready={song.ready} recording={active !== null} />}

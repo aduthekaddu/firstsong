@@ -8,8 +8,8 @@ import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
 
-export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, hideEmpty = false }: {
-  spec: TakeSpec; onBusy?: (busy: boolean) => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean;
+export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, hideEmpty = false, filenameId = spec.id, heading: Heading = "h4" }: {
+  spec: TakeSpec; onBusy?: (busy: boolean) => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean; filenameId?: string; heading?: "h2" | "h4";
 }) {
   const [take, setTake] = useState<Take | null>(null);
   const [ready, setReady] = useState(false);
@@ -211,7 +211,7 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
     }
   }
 
-  const fileName = take ? `firstsong-${spec.id}.${audioExtension(take.blob.type)}` : "";
+  const fileName = take ? `firstsong-${filenameId}.${audioExtension(take.blob.type)}` : "";
   let shareFile: File | undefined;
   if (take && typeof navigator !== "undefined" && typeof navigator.canShare === "function" && typeof navigator.share === "function") {
     try {
@@ -240,7 +240,7 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
   return (
     <section aria-label={spec.label} className="min-w-0 space-y-3 border-t border-[var(--line)] pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h4 className="m-0 text-[16px] font-medium text-[var(--ink)]">{spec.label}</h4>
+        <Heading className="m-0 text-[16px] font-medium text-[var(--ink)]">{spec.label}</Heading>
         <span className="font-mono-num text-[13px] text-[var(--muted)]">
           {phase === "count" ? `Count in · ${beat}/4`
             : phase === "record" ? `${spec.bars ? `Bar ${bar}/${spec.bars} · ` : ""}${formatClock(elapsed)} / ${formatClock(duration)}`
@@ -283,12 +283,12 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
         )}
       </div>
       {message && <p className="text-[13px] text-[var(--muted)]" role="status">{message}</p>}
-      {take && spec.trim && !active && !ending && <TrimTake key={take.createdAt} take={take} />}
+      {take && spec.trim && !active && !ending && <TrimTake key={take.createdAt} take={take} filenameId={filenameId} />}
     </section>
   );
 }
 
-function TrimTake({ take }: { take: Take }) {
+function TrimTake({ take, filenameId }: { take: Take; filenameId: string }) {
   const [from, setFrom] = useState("0");
   const [to, setTo] = useState("");
   const [working, setWorking] = useState(false);
@@ -337,7 +337,7 @@ function TrimTake({ take }: { take: Take }) {
         <button type="button" className="btn-secondary" disabled={working} onClick={() => void preview()}>{working ? "Preparing preview" : "Preview trim"}</button>
         {trimmed && url && <div className="space-y-3">
           <audio className="studio-audio w-full" src={url} controls aria-label="Trimmed take playback" />
-          <button type="button" className="btn-secondary" onClick={() => downloadFile(trimmed, "firstsong-final-trimmed.wav")}><Download size={14} aria-hidden="true" /> Download trimmed WAV</button>
+          <button type="button" className="btn-secondary" onClick={() => downloadFile(trimmed, `firstsong-${filenameId}-trimmed.wav`)}><Download size={14} aria-hidden="true" /> Download trimmed WAV</button>
         </div>}
         {message && <p role="status" className="text-[13px] text-[var(--muted)]">{message}</p>}
       </div>
