@@ -7,6 +7,7 @@ import { audioExtension, downloadFile, encodeWav, formatClock, getTake, saveTake
 import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
+const interrupted = "The recording was interrupted. Any earlier take is unchanged.";
 
 export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, hideEmpty = false }: {
   spec: TakeSpec; onBusy?: (busy: boolean) => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean;
@@ -76,6 +77,11 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
 
   function stop() {
     if (phaseRef.current === "record" && recorder.current?.state === "recording") {
+      if (!mic.current?.getAudioTracks().some((track) => track.readyState === "live")) {
+        epoch.current++;
+        finish(interrupted);
+        return;
+      }
       change("save");
       recorder.current.stop();
     } else if (phaseRef.current === "mic" || phaseRef.current === "count") {
@@ -132,13 +138,18 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
       };
       capture.onstop = async () => {
         if (request !== epoch.current) return;
+        // MediaRecorder also stops itself when all input tracks end. Do not
+        // replace a saved take with the partial data from that interruption.
+        if (phaseRef.current !== "save") {
+          finish(interrupted);
+          return;
+        }
         const next = {
           blob: new Blob(chunks, { type: capture.mimeType || chunks[0]?.type || "" }),
           seconds: Math.max(0, (performance.now() - started) / 1000),
           createdAt: Date.now(),
         };
         release();
-        change("save");
         if (!next.blob.size) {
           finish("No audio was captured. Any earlier take is unchanged.");
           return;
@@ -154,6 +165,11 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
       };
       function record() {
         if (request !== epoch.current) return;
+        if (!stream.getAudioTracks().some((track) => track.readyState === "live")) {
+          epoch.current++;
+          finish(interrupted);
+          return;
+        }
         try {
           started = performance.now();
           capture.start();

@@ -24,13 +24,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm test
       - name: Build the GitHub Pages static export
         run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: /firstsong
-      - run: npx playwright install --with-deps chromium --only-shell
+      - run: ./node_modules/.bin/playwright install --with-deps chromium --only-shell
       - name: Run the course journey with a simulated microphone
         run: npm run test:e2e -- --workers=1

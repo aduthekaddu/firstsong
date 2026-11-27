@@ -129,6 +129,34 @@ test("mic denial does not strand the learner", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
 });
 
+test("a disconnected microphone cannot replace the last saved take", async ({ page, context }) => {
+  await context.grantPermissions(["microphone"]);
+  await page.addInitScript(() => {
+    const media = navigator.mediaDevices;
+    const request = media.getUserMedia.bind(media);
+    media.getUserMedia = async (constraints) => {
+      const stream = await request(constraints);
+      document.addEventListener("firstsong-test-disconnect", () => {
+        stream.getAudioTracks().forEach((track) => track.stop());
+      }, { once: true });
+      return stream;
+    };
+  });
+  await page.goto("week-6/");
+  await record(page, "sound check");
+  const player = page.getByLabel("Sound check playback");
+  const bytes = () => player.evaluate(async (el: HTMLAudioElement) =>
+    Array.from(new Uint8Array(await (await fetch(el.src)).arrayBuffer())));
+  const original = await bytes();
+  await page.getByRole("button", { name: "Record sound check again", exact: true }).click();
+  await expect(page.getByText(/0:01 \/ /)).toBeVisible();
+  await page.evaluate(() => document.dispatchEvent(new Event("firstsong-test-disconnect")));
+  await expect(page.getByText("The recording was interrupted. Any earlier take is unchanged.")).toBeVisible();
+  await page.reload();
+  await expect(player).toHaveAttribute("src", /^blob:/);
+  expect(await bytes()).toEqual(original);
+});
+
 test("the timed verse records past the old 20-second cap and survives a cancelled retake", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
