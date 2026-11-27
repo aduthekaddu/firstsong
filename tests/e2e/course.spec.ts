@@ -485,3 +485,38 @@ test("an open Songbook picks up new course takes from another tab", async ({ pag
   await record(page, "sound check");
   await expect(player).toHaveAttribute("src", /^blob:/);
 });
+
+test("the Stage 0 mic tuner uses the chosen physical string for peg direction", async ({ page, context }) => {
+  await page.setViewportSize({ width: 320, height: 760 });
+  await context.grantPermissions(["microphone"]);
+  await page.addInitScript(() => {
+    const createAnalyser = AudioContext.prototype.createAnalyser;
+    AudioContext.prototype.createAnalyser = function () {
+      const analyser = createAnalyser.call(this);
+      const rate = this.sampleRate;
+      analyser.getFloatTimeDomainData = (target) => {
+        const hz = Number(document.documentElement.dataset.tuningTestHz ?? "98");
+        for (let i = 0; i < target.length; i++) target[i] = 0.35 * Math.sin(2 * Math.PI * hz * i / rate);
+      };
+      return analyser;
+    };
+  });
+  await page.goto("./#lesson");
+  await page.getByRole("button", { name: "Listen with mic", exact: true }).click();
+  const selector = page.getByRole("combobox", { name: "Target string" });
+  await expect(selector).toHaveValue("0");
+  await expect(page.getByText("Low E is sharp · loosen peg slowly", { exact: true })).toBeVisible();
+  await selector.selectOption("1");
+  await expect(page.getByText("A is flat · tighten peg slowly", { exact: true })).toBeVisible();
+  await selector.selectOption("5");
+  await expect(page.getByText(/Far from the target\. Check the string/)).toBeVisible();
+
+  await selector.selectOption("0");
+  await page.evaluate(() => { document.documentElement.dataset.tuningTestHz = String(82.41 * 2 ** (11 / 1200)); });
+  await expect(page.getByText("+11¢", { exact: true })).toBeVisible();
+  await expect(page.getByText("Low E is in tune", { exact: true })).toHaveCount(0);
+  await page.evaluate(() => { document.documentElement.dataset.tuningTestHz = "82.41"; });
+  await expect(page.getByText("Low E is in tune", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Stop mic tuner" }).click();
+  await expect(selector).toHaveCount(0);
+});

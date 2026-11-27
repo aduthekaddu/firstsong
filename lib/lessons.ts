@@ -37,7 +37,7 @@ export const stageZero: Lesson = {
   steps: [
     {
       id: "tune", kind: "tune", title: "Tune your guitar", minutes: 3,
-      instruction: "Start with the thickest string. Play its reference note, then pluck your string and turn its tuning peg a little at a time until the pitches match. Work toward the thinnest string.",
+      instruction: "Start with the thickest string. Play its reference note, then pluck your string and turn its tuning peg a little at a time until the pitches match. If you use the mic, select the string you’re plucking. Work toward the thinnest string.",
     },
     {
       id: "tap", kind: "tap", title: "Find four steady beats", minutes: 2,

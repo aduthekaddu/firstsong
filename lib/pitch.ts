@@ -140,3 +140,21 @@ export function detectGuitarPitch(
     rms,
   };
 }
+
+type TuningHistory = { smoothedCents: number; stableFrames: number };
+const LOCK_CENTS = 4.5;
+const CHECK_STRING_CENTS = 450;
+
+export function tuningFeedback(hz: number, targetHz: number, previous: TuningHistory | null) {
+  const rawCents = 1200 * Math.log2(hz / targetHz);
+  const smoothedCents = previous && Math.sign(previous.smoothedCents) === Math.sign(rawCents)
+    ? previous.smoothedCents * 0.72 + rawCents * 0.28
+    : rawCents;
+  const close = Math.abs(rawCents) <= LOCK_CENTS;
+  const stableFrames = close && Math.abs(smoothedCents) <= LOCK_CENTS ? (previous?.stableFrames ?? 0) + 1 : 0;
+  const status: "check-string" | "locked" | "checking" | "flat" | "sharp" = Math.abs(rawCents) > CHECK_STRING_CENTS ? "check-string"
+    : stableFrames >= 3 ? "locked"
+      : close ? "checking"
+        : rawCents < 0 ? "flat" : "sharp";
+  return { smoothedCents, stableFrames, status };
+}
