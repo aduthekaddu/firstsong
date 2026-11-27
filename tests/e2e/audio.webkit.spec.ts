@@ -29,6 +29,13 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
     };
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: { getUserMedia } });
     document.documentElement.dataset.testAudioState = "test input installed";
+    const start = MediaRecorder.prototype.start;
+    MediaRecorder.prototype.start = function (timeslice?: number) {
+      this.addEventListener("dataavailable", ({ data }) => {
+        document.documentElement.dataset.testRecordedBytes = `${data.size} bytes (${data.type})`;
+      });
+      return start.call(this, timeslice);
+    };
   });
   await page.getByRole("button", { name: "Record final song", exact: true }).click();
   try {
@@ -39,7 +46,13 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
     throw new Error(`Could not start the WebKit recording. Audio state: ${state}. Recorder: ${status}. Page errors: ${errors.join("; ")}`, { cause: error });
   }
   await page.getByRole("button", { name: "Stop recording", exact: true }).click();
-  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  try {
+    await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  } catch (error) {
+    const status = await page.getByRole("region", { name: "Final song" }).innerText();
+    const bytes = await page.locator("html").getAttribute("data-test-recorded-bytes");
+    throw new Error(`Could not save the WebKit recording. Recorded bytes: ${bytes}. Recorder: ${status}. Page errors: ${errors.join("; ")}`, { cause: error });
+  }
   await page.reload();
   const playback = page.getByLabel("Final song playback");
   await expect(playback).toHaveAttribute("src", /^blob:/);
