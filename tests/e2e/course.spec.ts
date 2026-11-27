@@ -47,6 +47,8 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await page.getByRole("button", { name: "Finish Week 1" }).click();
   await page.getByRole("link", { name: "Firstsong", exact: true }).click();
   await page.getByRole("link", { name: "Review Week 1" }).click();
+  await expect(page).toHaveURL(/\/firstsong\/week-1\/#lesson$/);
+  await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
   await expect(page.getByText("Rain in my blue cup", { exact: true })).toBeVisible();
