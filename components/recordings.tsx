@@ -4,12 +4,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Check, Mic, Square } from "lucide-react";
 import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
-import { audioExtension, hasRecordingInput, interruptedTakeMessage, normalizeAudioDataUrl } from "../lib/studio-audio";
+import { audioExtension, hasRecordingInput, interruptedTakeMessage } from "../lib/studio-audio";
+
+import { legacyTakes, MAX_CAPTION_LENGTH, parseLegacyTake, type LegacyTake } from "../lib/legacy-takes";
 
 type TakeId = "rhythm-a" | "rhythm-b" | "hook";
 export type Rhythm = Exclude<TakeId, "hook">;
-
-type Take = { audio: string; seconds: number; caption: string };
 
 type RecorderState =
   | { kind: "idle" }
@@ -17,7 +17,6 @@ type RecorderState =
   | { kind: "recording"; take: TakeId; started: number };
 
 const MAX_SECONDS = 20;
-const MAX_CAPTION_LENGTH = 240;
 const METER_BARS = 24;
 const CLEAR_STATE: RecorderState = { kind: "idle" };
 
@@ -26,26 +25,6 @@ const defaultCaptions: Record<TakeId, string> = {
   "rhythm-b": "Hummed melody with a pause before the key word.",
   hook: "An E minor chord and the first hook.",
 };
-
-function parseTake(value: unknown): Take | null {
-  if (typeof value !== "object" || value === null) return null;
-  const audio = "audio" in value && typeof value.audio === "string" ? normalizeAudioDataUrl(value.audio) : null;
-  if (!audio) return null;
-  if (
-    !("seconds" in value) ||
-    typeof value.seconds !== "number" ||
-    !Number.isFinite(value.seconds) ||
-    value.seconds < 0
-  ) {
-    return null;
-  }
-  if (!("caption" in value) || typeof value.caption !== "string") return null;
-  return {
-    audio,
-    seconds: value.seconds,
-    caption: value.caption.slice(0, MAX_CAPTION_LENGTH),
-  };
-}
 
 function readAudio(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
@@ -72,9 +51,9 @@ export function Recordings({
   onRhythm: (rhythm: Rhythm) => void;
   onBusy: (busy: boolean) => void;
 }) {
-  const takeA = useLocalValue<Take | null>({ key: "take:rhythm-a", initial: null, parse: parseTake });
-  const takeB = useLocalValue<Take | null>({ key: "take:rhythm-b", initial: null, parse: parseTake });
-  const hook = useLocalValue<Take | null>({ key: "take:hook", initial: null, parse: parseTake });
+  const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake });
+  const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake });
+  const hook = useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake });
   const takes = { "rhythm-a": takeA, "rhythm-b": takeB, hook };
 
   const [state, setState] = useState<RecorderState>(CLEAR_STATE);
@@ -258,7 +237,7 @@ export function Recordings({
           if (request !== operation.current) return;
           const caption =
             id === "hook" && line.trim() ? `[Em chord] ${line.trim()}` : defaultCaptions[id];
-          const take = parseTake({
+          const take = parseLegacyTake({
             audio,
             seconds: (performance.now() - started) / 1000,
             caption,
@@ -363,7 +342,7 @@ function TakeSlot({
   registerBar,
 }: {
   id: TakeId;
-  take: Take | null;
+  take: LegacyTake | null;
   ready: boolean;
   warning: string;
   state: RecorderState;
@@ -371,7 +350,7 @@ function TakeSlot({
   preferred: boolean;
   onStart: () => void;
   onStop: () => void;
-  onSave: (take: Take) => void;
+  onSave: (take: LegacyTake) => void;
   onChoose: (rhythm: Rhythm) => void;
   registerBar: (index: number, el: HTMLSpanElement | null) => void;
 }) {
@@ -508,14 +487,11 @@ function TakeSlot({
 }
 
 export function LegacyTakeShelf() {
-  const takeA = useLocalValue<Take | null>({ key: "take:rhythm-a", initial: null, parse: parseTake });
-  const takeB = useLocalValue<Take | null>({ key: "take:rhythm-b", initial: null, parse: parseTake });
-  const hook = useLocalValue<Take | null>({ key: "take:hook", initial: null, parse: parseTake });
-  const saved = [
-    { key: "rhythm-a", title: "First rhythm A", take: takeA.value },
-    { key: "rhythm-b", title: "First rhythm B", take: takeB.value },
-    { key: "hook", title: "Stage 0 hook", take: hook.value },
-  ].filter(({ take }) => take !== null);
+  const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake });
+  const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake });
+  const hook = useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake });
+  const takes = { "rhythm-a": takeA.value, "rhythm-b": takeB.value, hook: hook.value };
+  const saved = legacyTakes.map(({ id, label }) => ({ key: id, title: label, take: takes[id] })).filter(({ take }) => take !== null);
   if (!saved.length) return null;
 
   return (

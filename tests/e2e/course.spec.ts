@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { strFromU8, unzipSync } from "fflate";
 import { readFile } from "node:fs/promises";
 
 async function goStep(page: Page, title: string) {
@@ -205,6 +206,10 @@ test("the songbook opens a take saved in the previous storage format", async ({ 
       tx.onabort = () => reject(tx.error);
     });
     db.close();
+    localStorage.setItem("firstsong:v1:take:hook", JSON.stringify({
+      audio: "data:audio/mp4; codecs=opus;base64,AQIDBA==", seconds: 2, caption: "My old hook",
+    }));
+    localStorage.setItem("firstsong:v1:song-project", JSON.stringify({ chorus: "बारिश", chords: "Em | Asus2" }));
   });
   await page.goto("songbook/");
   const player = page.getByLabel("Final song playback");
@@ -214,6 +219,30 @@ test("the songbook opens a take saved in the previous storage format", async ({ 
     return { type: file.type, bytes: Array.from(new Uint8Array(await file.arrayBuffer())) };
   });
   expect(original).toEqual({ type: "audio/webm", bytes: [7, 3, 9] });
+
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  await expect(page.getByText("Ready to save: your song notes and 2 original takes.")).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save ZIP" }).press("Enter");
+  const file = await pending;
+  expect(file.suggestedFilename()).toMatch(/^firstsong-backup-\d{4}-\d{2}-\d{2}\.zip$/);
+  const files = unzipSync(await readFile((await file.path())!));
+  expect(Object.keys(files).sort()).toEqual([
+    "lyrics-and-chords.txt", "manifest.json", "takes/final.webm", "takes/stage-0-hook.m4a",
+  ]);
+  expect(Array.from(files["takes/final.webm"])).toEqual(original.bytes);
+  expect(Array.from(files["takes/stage-0-hook.m4a"])).toEqual([1, 2, 3, 4]);
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("बारिश");
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("Em | Asus2");
+  const manifest = JSON.parse(strFromU8(files["manifest.json"]));
+  expect(manifest).toMatchObject({
+    format: "firstsong-song-backup", version: 1, song: { chorus: "बारिश" },
+    recordings: [
+      { id: "stage-0-hook", file: "takes/stage-0-hook.m4a", caption: "My old hook", mimeType: "audio/mp4;codecs=opus" },
+      { id: "final", file: "takes/final.webm", createdAt: 1 },
+    ],
+  });
+
 });
 
 test("mobile navigation and commands keep an active take on the recording page", async ({ page, context }) => {
@@ -324,4 +353,13 @@ test("Stage 0 still keeps and replays a short original hook", async ({ page, con
   await expect(page.getByLabel("Title line")).toHaveValue("I’ve got rain in my pocket");
   await page.goto("songbook/");
   await expect(page.getByLabel("Stage 0 hook playback")).toHaveAttribute("src", /^data:audio\//);
+});
+
+
+test("an empty songbook explains what to back up rather than generating an empty file", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 750 });
+  await page.goto("songbook/");
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  await expect(page.getByText("There’s nothing to back up yet. Write a line or record a take first.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save ZIP" })).toHaveCount(0);
 });

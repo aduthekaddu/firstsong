@@ -1,4 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { unzipSync } from "fflate";
 import { readFile } from "node:fs/promises";
 
 async function installTone(page: Page) {
@@ -110,6 +112,17 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
     peak = Math.max(peak, Math.abs(wav.readInt16LE(offset)));
   }
   expect(peak).toBeGreaterThan(256);
+
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  await expect(page.getByText("Ready to save: your song notes and 1 original take.")).toBeVisible();
+  const archiveDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save ZIP" }).click();
+  const archive = await archiveDownload;
+  const files = unzipSync(await readFile((await archive.path())!));
+  const track = Object.keys(files).find((name) => name.startsWith("takes/final."));
+  expect(track).toBeDefined();
+  expect(Array.from(createHash("sha256").update(files[track!]).digest())).toEqual(original);
+
 });
 
 

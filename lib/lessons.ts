@@ -148,7 +148,7 @@ export const course: readonly Lesson[] = [
     objective: "Make a playable recording and back it up.",
     steps: [
       { id: "test", kind: "practice", title: "Test your sound", minutes: 5, instruction: "Find a quiet room. Prop the phone up without covering its microphone, record a few seconds, then listen back and adjust your distance before the final take." },
-      { id: "export", kind: "practice", title: "Record and trim a full take", minutes: 5, instruction: "Count in and play the whole song. If singing and playing together is hard, strum once at the start of each bar or sing over the chord ringing out. Listen to the take, trim any extra silence, then download your audio and lyric sheet." },
+      { id: "export", kind: "practice", title: "Record and trim a full take", minutes: 5, instruction: "Count in and play the whole song. If singing and playing together is hard, strum once at the start of each bar or sing over the chord ringing out. Listen to the take, trim any extra silence, then download your audio and a ZIP backup." },
     ],
     checkpoint: "Keep a playable audio file, a lyric and chord sheet, and a backup.",
     stallResponses: [stalls.coordination, stalls.perfectionism, stalls.resume],

@@ -8,6 +8,7 @@ import { songFieldLimit, studioTakes, type SongField, type TakeSpec } from "../l
 import { useSongProject } from "../lib/use-song-project";
 import { chords } from "../lib/chords";
 import { ChordDiagram } from "./chord-diagram";
+import { SongBackup } from "./song-backup";
 import { StudioTake } from "./studio-take";
 import { LegacyTakeShelf } from "./recordings";
 
@@ -25,7 +26,7 @@ const fields: Record<SongField, { label: string; hint: string; rows?: number }> 
   revision: { label: "One thing to keep", hint: "Name what you heard and what you’ll use in the final take.", rows: 2 },
 };
 
-type Exercise = { fields?: SongField[]; takes?: TakeSpec[]; chord?: boolean; sheet?: boolean; cue?: string };
+type Exercise = { fields?: SongField[]; takes?: TakeSpec[]; chord?: boolean; sheet?: boolean; backup?: boolean; cue?: string };
 const exercises: Record<string, Exercise> = {
   "week-1:title": { fields: ["details", "hook"] },
   "week-1:melody": { fields: ["hook", "keyword"], takes: [studioTakes.melody] },
@@ -39,7 +40,7 @@ const exercises: Record<string, Exercise> = {
   "week-5:map": { fields: ["arrangement"] },
   "week-5:versions": { takes: [studioTakes.chorusA, studioTakes.chorusB], fields: ["revision"] },
   "week-6:test": { takes: [studioTakes.soundcheck], cue: "Listen for a comfortable balance and clean sound. If the voice disappears, angle the phone closer to your mouth and try again." },
-  "week-6:export": { takes: [studioTakes.final], sheet: true },
+  "week-6:export": { takes: [studioTakes.final], sheet: true, backup: true },
   "weeks-7-8:layers": { takes: [studioTakes.guitar, studioTakes.vocal], cue: "These are separate passes, not a synced multitrack project. For overdubs, download them and use a recording program with headphones." },
   "weeks-7-8:mix": { sheet: true, cue: "In your recording program, bring the vocal forward, then bring the guitar up until it supports it. Export a lossless master and a smaller listening copy. Open both files to check them before starting song two." },
 };
@@ -50,7 +51,7 @@ const checkpoints: Record<string, Exercise> = {
   "week-3": { fields: ["verseOne", "chorus"], takes: [studioTakes.contrast] },
   "week-4": { fields: ["title", "ending"], takes: [studioTakes.draft], sheet: true },
   "week-5": { fields: ["arrangement", "revision"], takes: [studioTakes.chorusA, studioTakes.chorusB] },
-  "week-6": { takes: [studioTakes.final], sheet: true },
+  "week-6": { takes: [studioTakes.final], sheet: true, backup: true },
   "weeks-7-8": { takes: [studioTakes.guitar, studioTakes.vocal], sheet: true },
 };
 
@@ -60,7 +61,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
 }) {
   const readOnly = stepId === "checkpoint" || archive;
   const exercise: Exercise | undefined = archive
-    ? { fields: ["title", "hook", "verseOne", "chorus", "verseTwo", "chords", "ending", "arrangement", "revision"] as SongField[], takes: Object.values(studioTakes), sheet: true }
+    ? { fields: ["title", "hook", "verseOne", "chorus", "verseTwo", "chords", "ending", "arrangement", "revision"] as SongField[], takes: Object.values(studioTakes), sheet: true, backup: true }
     : readOnly ? checkpoints[lessonId] : exercises[`${lessonId}:${stepId}`];
   const song = useSongProject();
   const [active, setActive] = useState<string | null>(null);
@@ -98,6 +99,8 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
           <Link href="/chords/" className="ui-link text-[14px]">Open the chord library</Link>
         </div>
       )}
+
+      {exercise.backup && <SongBackup key={active ?? "idle"} song={song.value} ready={song.ready} recording={active !== null} />}
 
       {exercise.fields?.length ? (
         <div className="grid min-w-0 gap-5 border-t border-[var(--line)] pt-5">
@@ -148,10 +151,10 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
 
       {exercise.sheet && (
         <div className="space-y-2 border-t border-[var(--line)] pt-4">
-          <button type="button" className="btn-secondary" disabled={!song.ready || !["hook", "verseOne", "chorus", "verseTwo"].some((field) => song.value[field as SongField].trim())} onClick={exportSheet}>
+          <button type="button" className="btn-secondary" disabled={!song.ready || !["title", "hook", "verseOne", "chorus", "verseTwo", "chords", "ending", "arrangement"].some((field) => song.value[field as SongField].trim())} onClick={exportSheet}>
             <Download size={14} aria-hidden="true" /> Download lyrics and chords
           </button>
-          <p className="text-[13px] text-[var(--muted)]">Keep the text file and your audio somewhere outside this browser as a backup.</p>
+
         </div>
       )}
       {song.warning && <p role="status" className="text-[13px] text-[var(--accent)]">{song.warning}</p>}
