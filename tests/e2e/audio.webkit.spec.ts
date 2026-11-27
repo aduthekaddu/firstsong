@@ -5,10 +5,11 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 844 });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript(() => {
+  await page.goto("week-6/");
+  await page.evaluate(() => {
     // Substitute the input signal only: the app still uses the real recorder,
     // storage, playback and WAV encoder in this browser.
-    navigator.mediaDevices.getUserMedia = async () => {
+    const getUserMedia = async () => {
       const audio = new AudioContext();
       const input = audio.createMediaStreamDestination();
       const tone = audio.createOscillator();
@@ -22,9 +23,9 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page }) =>
       document.documentElement.dataset.testAudioState = audio.state;
       return input.stream;
     };
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: getUserMedia });
   });
 
-  await page.goto("week-6/");
   await page.getByRole("button", { name: "Next step" }).click();
   await page.getByRole("button", { name: "Record final song", exact: true }).click();
   try {
