@@ -100,6 +100,7 @@ export function Recordings({
   const stopAt = useRef(0);
   const operation = useRef(0);
   const recordingLocked = useRef(false);
+  const saveRequested = useRef(false);
   const group = useRef<HTMLDivElement>(null);
 
   function stopMeter() {
@@ -152,6 +153,13 @@ export function Recordings({
 
   function stop(id: TakeId) {
     if (recorder.current?.state === "recording") {
+      if (!stream.current?.getAudioTracks().some((track) => track.readyState === "live")) {
+        operation.current++;
+        releaseMic();
+        finish("The recording was interrupted. Any earlier take is unchanged.");
+        return;
+      }
+      saveRequested.current = true;
       setState({ kind: "saving", take: id });
       recorder.current.stop();
       stream.current?.getTracks().forEach((track) => track.stop());
@@ -194,6 +202,7 @@ export function Recordings({
     }
 
     recordingLocked.current = true;
+    saveRequested.current = false;
     onBusy(true);
     const request = ++operation.current;
     setMessage("");
@@ -233,7 +242,10 @@ export function Recordings({
       recording.onstop = async () => {
         if (request !== operation.current || failed) return;
         releaseMic();
-        setState({ kind: "saving", take: id });
+        if (!saveRequested.current) {
+          finish("The recording was interrupted. Any earlier take is unchanged.");
+          return;
+        }
         const blob = new Blob(chunks, { type: recording.mimeType || chunks[0]?.type });
         try {
           if (!blob.size) throw new Error("No audio was captured.");
@@ -258,7 +270,9 @@ export function Recordings({
 
       recording.start();
       setState({ kind: "recording", take: id, started });
-      window.requestAnimationFrame(() => startMeter(input, id));
+      window.requestAnimationFrame(() => {
+        if (request === operation.current && stream.current === input) startMeter(input, id);
+      });
       stopAt.current = window.setTimeout(() => stop(id), MAX_SECONDS * 1000);
     } catch (error) {
       if (request !== operation.current) return;

@@ -129,8 +129,7 @@ test("mic denial does not strand the learner", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
 });
 
-test("a disconnected microphone cannot replace the last saved take", async ({ page, context }) => {
-  await context.grantPermissions(["microphone"]);
+async function enableMicDisconnection(page: Page) {
   await page.addInitScript(() => {
     const media = navigator.mediaDevices;
     const request = media.getUserMedia.bind(media);
@@ -142,6 +141,11 @@ test("a disconnected microphone cannot replace the last saved take", async ({ pa
       return stream;
     };
   });
+}
+
+test("a disconnected microphone cannot replace the last saved studio take", async ({ page, context }) => {
+  await context.grantPermissions(["microphone"]);
+  await enableMicDisconnection(page);
   await page.goto("week-6/");
   await record(page, "sound check");
   const player = page.getByLabel("Sound check playback");
@@ -179,6 +183,7 @@ test("the timed verse records past the old 20-second cap and survives a cancelle
 test("Stage 0 still keeps and replays a short original hook", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
+  await enableMicDisconnection(page);
   await page.goto("./#lesson");
   await goStep(page, "Write one line");
   await page.getByLabel("Your concrete line").fill("I’ve got rain in my pocket");
@@ -187,8 +192,15 @@ test("Stage 0 still keeps and replays a short original hook", async ({ page, con
   const stop = page.getByRole("button", { name: /Stop recording \(1s\)/ });
   await stop.click();
   await expect(page.getByText(/Take saved in this browser/)).toBeVisible();
+  const player = page.getByLabel("Your hook playback");
+  await expect(player).toHaveAttribute("src", /^data:audio\//);
+  const original = await player.getAttribute("src");
+  await page.getByRole("button", { name: "Record Your hook again", exact: true }).click();
+  await expect(stop).toBeVisible();
+  await page.evaluate(() => document.dispatchEvent(new Event("firstsong-test-disconnect")));
+  await expect(page.getByText("The recording was interrupted. Any earlier take is unchanged.")).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Your hook playback")).toHaveAttribute("src", /^data:audio\//);
+  await expect(player).toHaveAttribute("src", original!);
   await page.getByRole("button", { name: "Finish Stage 0" }).click();
   await page.getByRole("link", { name: "Continue to Week 1" }).click();
   await goStep(page, "Find a title line");
