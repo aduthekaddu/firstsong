@@ -104,7 +104,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
         <Link href="/songbook/#new-song" className="ui-link text-[15px]">Start your next song</Link>
       )}
 
-      {exercise.backup && <SongBackup key={active ?? "idle"} song={song.value} ready={song.ready} recording={active !== null} />}
+      {exercise.backup && <SongBackup key={active ?? "idle"} song={song.value} ready={song.ready} notesUnreadable={song.readWarning} recording={active !== null} />}
 
       {exercise.fields?.length ? (
         <div className="grid min-w-0 gap-5 border-t border-[var(--line)] pt-5">

@@ -572,3 +572,76 @@ test("a line-only Stage 0 backup works and independent songs never include the g
   expect(independent.sheet).not.toContain(edited);
   expect(independent.sheet).not.toContain(laterHook);
 });
+
+test("a partial ZIP keeps playable audio and Unicode lyrics when an old recording is unreadable", async ({ page, context }) => {
+  await context.grantPermissions(["microphone"]);
+  await page.goto("week-6/");
+  await next(page);
+  await record(page, "final song");
+  const player = page.getByLabel("Final song playback");
+  const saved = await player.evaluate(async (audio: HTMLAudioElement) => ({
+    bytes: Array.from(new Uint8Array(await (await fetch(audio.src)).arrayBuffer())),
+  }));
+  expect(saved.bytes.length).toBeGreaterThan(1000);
+  await expect.poll(() => player.evaluate((audio: HTMLAudioElement) => audio.readyState)).toBeGreaterThan(0);
+
+  await page.evaluate(() => {
+    localStorage.setItem("firstsong:v1:take:hook", "{invalid legacy audio");
+    localStorage.setItem("firstsong:v1:song-project:chorus", "बारिश in the open window");
+  });
+  await page.goto("songbook/");
+  await expect(page.getByText("बारिश in the open window", { exact: true })).toBeVisible();
+  const area = page.getByRole("region", { name: "Song backup" });
+  await area.getByRole("button", { name: "Back up your song" }).click();
+  await expect(area.getByText("Partial backup ready. The ZIP lists what couldn’t be read.")).toBeVisible();
+  await area.getByText("What couldn’t be read", { exact: true }).click();
+  await expect(area.getByText("Stage 0 hook", { exact: true })).toBeVisible();
+  const pending = page.waitForEvent("download");
+  await area.getByRole("button", { name: "Save partial ZIP" }).click();
+  const archive = await pending;
+  expect(archive.suggestedFilename()).toMatch(/-partial\.zip$/);
+  const files = unzipSync(await readFile((await archive.path())!));
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("बारिश in the open window");
+  expect(strFromU8(files["backup-notes.txt"])).toContain("Stage 0 hook");
+  const manifest = JSON.parse(strFromU8(files["manifest.json"]));
+  expect(manifest.omissions).toEqual([{ id: "stage-0-hook", label: "Stage 0 hook" }]);
+  expect(manifest.recordings).toHaveLength(1);
+  expect(Array.from(files[manifest.recordings[0].file])).toEqual(saved.bytes);
+  expect(await page.evaluate(() => localStorage.getItem("firstsong:v1:take:hook"))).toBe("{invalid legacy audio");
+});
+
+test("blocked IndexedDB is not mistaken for an empty song and text is still downloadable", async ({ page, context }) => {
+  await context.addInitScript(() => {
+    IDBFactory.prototype.open = function () { throw new DOMException("blocked", "SecurityError"); };
+  });
+  await page.goto("songbook/");
+  const area = page.getByRole("region", { name: "Song backup" });
+  const prepare = area.getByRole("button", { name: "Back up your song" });
+  const save = area.getByRole("button", { name: "Save partial ZIP" });
+  await prepare.click();
+  await expect(area.getByText("Couldn’t read enough saved work to make a ZIP. Nothing was deleted.")).toBeVisible();
+  await expect(save).toHaveCount(0);
+  await expect(area.getByText(/There’s nothing to back up yet/)).toHaveCount(0);
+  await page.evaluate(() => localStorage.setItem("firstsong:v1:line", JSON.stringify("Original course line")));
+  await page.reload();
+  await prepare.click();
+  const guidedPending = page.waitForEvent("download");
+  await save.click();
+  const guided = unzipSync(await readFile((await (await guidedPending).path())!));
+  expect(strFromU8(guided["lyrics-and-chords.txt"])).toContain("Original course line");
+  const guidedManifest = JSON.parse(strFromU8(guided["manifest.json"]));
+  expect(guidedManifest.omissions).toContainEqual({ id: "final", label: "Final song" });
+  expect(guidedManifest.recordings).toEqual([]);
+
+  await page.getByRole("button", { name: "New blank song" }).click();
+  await page.getByLabel("Song title").fill("Another morning");
+  await page.getByLabel("First line").fill("खिड़की");
+  await prepare.click();
+  const draftPending = page.waitForEvent("download");
+  await save.click();
+  const draft = unzipSync(await readFile((await (await draftPending).path())!));
+  expect(strFromU8(draft["lyrics-and-chords.txt"])).toContain("खिड़की");
+  expect(strFromU8(draft["lyrics-and-chords.txt"])).not.toContain("Original course line");
+  const draftManifest = JSON.parse(strFromU8(draft["manifest.json"]));
+  expect(draftManifest.omissions).toEqual([{ id: "recording", label: "Demo take" }]);
+});

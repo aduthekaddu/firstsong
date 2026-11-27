@@ -80,7 +80,7 @@ function DraftEditor({ id }: { id: string }) {
       </div>
       <StudioTake spec={{ ...writingTake, id: writingTakeId(id) }} filenameId={writingTake.id} heading="h2"
         onBusy={(active) => { setRecording(active); protectRecording(active); }} />
-      <SongBackup key={String(recording)} song={song.value} ready={song.ready} recording={recording} projectId={id} />
+      <SongBackup key={String(recording)} song={song.value} ready={song.ready} notesUnreadable={song.readWarning} recording={recording} projectId={id} />
     </div>
   );
 }

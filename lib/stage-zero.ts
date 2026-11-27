@@ -14,15 +14,21 @@ export function parseRhythm(value: unknown): Rhythm | null {
 
 export const stageZeroWritingKeys = [firstLineKey, rhythmKey].map((name) => `firstsong:v1:${name}`);
 
-export function readStageZeroWriting(storage: Pick<Storage, "getItem">) {
-  function read(key: string): unknown {
-    const raw = storage.getItem(`firstsong:v1:${key}`);
-    if (raw === null) return null;
+export function readStageZeroWriting(storage: Pick<Storage, "getItem">, onUnreadable?: (key: string) => void) {
+  function read<T>(key: string, parse: (data: unknown) => T, isValid: (data: unknown) => boolean): T {
     try {
-      return JSON.parse(raw);
+      const raw = storage.getItem(`firstsong:v1:${key}`);
+      if (raw === null) return parse(null);
+      const value: unknown = JSON.parse(raw);
+      if (isValid(value)) return parse(value);
     } catch {
-      return null;
+      // Read the other field even if this one is damaged or unavailable.
     }
+    onUnreadable?.(key);
+    return parse(null);
   }
-  return { firstLine: parseFirstLine(read(firstLineKey)), rhythm: parseRhythm(read(rhythmKey)) };
+  return {
+    firstLine: read(firstLineKey, parseFirstLine, (value) => typeof value === "string"),
+    rhythm: read(rhythmKey, parseRhythm, (value) => value === null || parseRhythm(value) !== null),
+  };
 }

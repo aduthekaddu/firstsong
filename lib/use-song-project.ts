@@ -81,5 +81,5 @@ export function useSongProject(id?: string) {
 
   const warning = unsaved.size ? "Some edits could not be saved for your next visit. Keep a copy before leaving."
     : readWarning ? "Some saved song data could not be read in this browser." : "";
-  return { value, ready, save, warning };
+  return { value, ready, save, warning, readWarning };
 }

@@ -101,10 +101,17 @@ async function transact<T>(
 
 export async function getTake(id: string): Promise<StudioTake | null> {
   if (volatile.has(id)) return volatile.get(id) ?? null;
-  const saved: StudioTake | StoredTake | undefined = await transact("readonly", (store) => store.get(id));
-  if (!saved) return null;
-  if ("blob" in saved) return saved;
-  const { bytes, type, seconds, createdAt } = saved;
+  const saved: unknown = await transact("readonly", (store) => store.get(id));
+  if (saved === undefined) return null;
+  if (!saved || typeof saved !== "object") throw new Error("Invalid saved take.");
+  const { seconds, createdAt } = saved as Partial<StudioTake>;
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0 ||
+    typeof createdAt !== "number" || !Number.isFinite(createdAt) || createdAt < 0) {
+    throw new Error("Invalid saved take metadata.");
+  }
+  if ("blob" in saved && saved.blob instanceof Blob && saved.blob.size) return { blob: saved.blob, seconds, createdAt };
+  const { bytes, type } = saved as Partial<StoredTake>;
+  if (!(bytes instanceof ArrayBuffer) || !bytes.byteLength || typeof type !== "string") throw new Error("Invalid saved audio.");
   return { blob: new Blob([bytes], { type }), seconds, createdAt };
 }
 
