@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, HelpCircle } from "lucide-react";
 import { course, lessonHref, type Lesson, type LessonStep } from "../lib/lessons";
+import { emptyLessonProgress, readLessonProgress } from "../lib/lesson-progress";
+import { useLessonProgress } from "../lib/use-lesson-progress";
 import { useLocalValue } from "../lib/local-value";
 import { CourseArc } from "./course-arc";
 import { HeroStage } from "./hero-stage";
@@ -17,29 +19,9 @@ import { Recordings, type Rhythm } from "./recordings";
 import { RecordingLink as Link, useRecordingNavigation } from "./recording-navigation";
 import { SongWorkbench } from "./song-workbench";
 
-type Progress = { current: string; visited: string[]; finished: boolean };
-
-const emptyProgress: Progress = { current: "", visited: [], finished: false };
 const lastLessonKey = "firstsong:v1:last-course-lesson";
 const maxLineLength = 180;
 const maxNotesLength = 320;
-
-function parseProgress(value: unknown): Progress {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("current" in value) ||
-    typeof value.current !== "string" ||
-    !("visited" in value) ||
-    !Array.isArray(value.visited) ||
-    !("finished" in value) ||
-    typeof value.finished !== "boolean"
-  ) {
-    return emptyProgress;
-  }
-  const visited = value.visited.filter((item: unknown) => typeof item === "string");
-  return { current: value.current, visited, finished: value.finished };
-}
 
 function parseLine(value: unknown) {
   return typeof value === "string" ? value.slice(0, maxLineLength) : "";
@@ -65,15 +47,14 @@ function getReturnLesson(): { href: string; label: string } | null {
   const lastOpened = laterLessons.find((item) => item.id === recent);
   const candidates = lastOpened ? [lastOpened] : laterLessons;
   for (const item of candidates) {
-    let saved = emptyProgress;
+    let saved = emptyLessonProgress;
     try {
-      saved = parseProgress(JSON.parse(localStorage.getItem(`firstsong:v1:lesson:${item.id}`) ?? "null"));
+      saved = readLessonProgress(localStorage, item);
     } catch {
       // A damaged entry should not hide the rest of the learner's progress.
     }
-    const hasCheckpoint = item.steps.some((step) => step.id === saved.current);
-    if (!hasCheckpoint && item !== lastOpened) continue;
-    const action = hasCheckpoint && saved.finished ? "Review" : "Resume";
+    if (!saved.current && !saved.checkpoint && item !== lastOpened) continue;
+    const action = saved.checkpoint ? "Review" : "Resume";
     const stage = item.id === "weeks-7-8" ? "Weeks 7–8" : item.stage;
     return { href: `${lessonHref(item.id)}#lesson`, label: `${action} ${stage}` };
   }
@@ -81,11 +62,7 @@ function getReturnLesson(): { href: string; label: string } | null {
 }
 
 export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: boolean }) {
-  const progress = useLocalValue({
-    key: `lesson:${lesson.id}`,
-    initial: emptyProgress,
-    parse: parseProgress,
-  });
+  const progress = useLessonProgress(lesson);
   const line = useLocalValue({ key: "line", initial: "", parse: parseLine });
   const weekOneNotes = useLocalValue({
     key: "week-1:notes",
@@ -127,11 +104,13 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
   const focusNextRef = useRef(false);
 
   const progressValue = progress.value;
-  const index = Math.max(0, lesson.steps.findIndex((s) => s.id === progressValue.current));
+  const finished = progress.checkpointView;
+  const index = finished
+    ? lesson.steps.length - 1
+    : Math.max(0, lesson.steps.findIndex((s) => s.id === progressValue.current));
   const step = lesson.steps[index];
   const next = lesson.steps[index + 1];
   const nextLesson = course[course.findIndex((item) => item.id === lesson.id) + 1];
-  const finished = progressValue.finished;
   const visited = new Set(
     progressValue.visited.filter((id) => lesson.steps.some((item) => item.id === id))
   );
@@ -152,21 +131,22 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
       return;
     }
     focusNextRef.current = true;
-    progress.save({ ...progressValue, current: target.id, finished: false });
+    progress.save(target.id);
   }
 
   function advance() {
     if (!progress.ready || busy) return;
-    visited.add(step.id);
     focusNextRef.current = true;
-    progress.save({
-      current: next?.id ?? step.id,
-      visited: [...visited],
-      finished: !next,
-    });
+    progress.save(next?.id ?? step.id, step.id, !next);
   }
 
-  const ctaLabel = finished
+  function startFromHero() {
+    if (busy) return;
+    if (progress.value.checkpoint) progress.setCheckpointView(true);
+    scrollToBench();
+  }
+
+  const ctaLabel = progress.value.checkpoint
     ? "Review Stage 0"
     : progressValue.current
       ? "Resume Stage 0"
@@ -179,7 +159,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
         <HeroStage
           ctaLabel={returnLesson?.label ?? ctaLabel}
           ctaHref={returnLesson?.href}
-          onStartSession={scrollToBench}
+          onStartSession={startFromHero}
         />
       ) : (
         <section className="pt-10 pb-12 sm:pt-14 sm:pb-16" aria-labelledby="course-lesson-heading">

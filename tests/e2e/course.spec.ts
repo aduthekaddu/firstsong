@@ -451,3 +451,24 @@ test("opening a Writing Room URL on a different device does not create or share 
   await page.getByRole("link", { name: "Open your songbook", exact: true }).click();
   await expect(page.getByRole("list", { name: "Independent songs" })).toHaveCount(0);
 });
+
+test("reviewing from an older tab keeps a completed week and its checkpoint", async ({ page, context }) => {
+  const older = await context.newPage();
+  await Promise.all([page.goto("week-1/"), older.goto("week-1/")]);
+  await expect(older.getByRole("heading", { name: "Four slow downstrokes" })).toBeVisible();
+  await next(page);
+  await next(page);
+  await next(page);
+  await page.getByRole("button", { name: "Finish Week 1" }).click();
+  await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
+  await expect(older.getByRole("heading", { name: "Four slow downstrokes" })).toBeVisible();
+  await next(older);
+  await expect(older.getByText("4 of 4 steps done", { exact: false })).toBeVisible();
+
+  await page.getByRole("button", { name: "Review last step" }).click();
+  await expect(page.getByRole("heading", { name: "Make a four-bar memo" })).toBeVisible();
+  await older.goto("./");
+  await older.getByRole("link", { name: "Review Week 1" }).click();
+  await expect(older.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
+  await expect(older.getByText("4 of 4 steps done", { exact: false })).toBeVisible();
+});
