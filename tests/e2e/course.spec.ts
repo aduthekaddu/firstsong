@@ -28,6 +28,7 @@ test("a phone learner carries a hook through the course and downloads audio and 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("./");
+  await expect(page.getByRole("button", { name: "Start Stage 0" })).toBeVisible();
   await page.locator("#curriculum").getByRole("link", { name: "Open Week 1", exact: true }).click();
   await expect(page).toHaveURL(/\/firstsong\/week-1\//);
   await goStep(page, "Find a title line");
@@ -38,7 +39,14 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await next(page);
   await page.getByLabel("Four-bar memo tempo").selectOption("90");
   await record(page, "four-bar memo", true);
+  await page.getByRole("link", { name: "Firstsong", exact: true }).click();
+  await page.getByRole("link", { name: "Resume Week 1" }).click();
+  await expect(page.getByRole("heading", { name: "Make a four-bar memo" })).toBeVisible();
+  await expect(page.getByLabel("Title line")).toHaveValue("Rain in my blue cup");
+  await expect(page.getByLabel("Four-bar memo playback")).toHaveAttribute("src", /^blob:/);
   await page.getByRole("button", { name: "Finish Week 1" }).click();
+  await page.getByRole("link", { name: "Firstsong", exact: true }).click();
+  await page.getByRole("link", { name: "Review Week 1" }).click();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
   await expect(page.getByText("Rain in my blue cup", { exact: true })).toBeVisible();

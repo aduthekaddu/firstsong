@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, HelpCircle } from "lucide-react";
 import { course, lessonHref, type Lesson, type LessonStep } from "../lib/lessons";
 import { useLocalValue } from "../lib/local-value";
@@ -20,6 +20,7 @@ import { SongWorkbench } from "./song-workbench";
 type Progress = { current: string; visited: string[]; finished: boolean };
 
 const emptyProgress: Progress = { current: "", visited: [], finished: false };
+const lastLessonKey = "firstsong:v1:last-course-lesson";
 const maxLineLength = 180;
 const maxNotesLength = 320;
 
@@ -52,6 +53,33 @@ function parseRhythm(value: unknown): Rhythm | null {
   return value === "rhythm-a" || value === "rhythm-b" ? value : null;
 }
 
+function getReturnLesson(): { href: string; label: string } | null {
+  let recent: string | null = null;
+  try {
+    recent = localStorage.getItem(lastLessonKey);
+  } catch {
+    return null;
+  }
+
+  const laterLessons = course.slice(1).reverse();
+  const lastOpened = laterLessons.find((item) => item.id === recent);
+  const candidates = lastOpened ? [lastOpened] : laterLessons;
+  for (const item of candidates) {
+    let saved = emptyProgress;
+    try {
+      saved = parseProgress(JSON.parse(localStorage.getItem(`firstsong:v1:lesson:${item.id}`) ?? "null"));
+    } catch {
+      // A damaged entry should not hide the rest of the learner's progress.
+    }
+    const hasCheckpoint = item.steps.some((step) => step.id === saved.current);
+    if (!hasCheckpoint && item !== lastOpened) continue;
+    const action = hasCheckpoint && saved.finished ? "Review" : "Resume";
+    const stage = item.id === "weeks-7-8" ? "Weeks 7–8" : item.stage;
+    return { href: `${lessonHref(item.id)}#lesson`, label: `${action} ${stage}` };
+  }
+  return null;
+}
+
 export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: boolean }) {
   const progress = useLocalValue({
     key: `lesson:${lesson.id}`,
@@ -70,6 +98,25 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
     parse: parseRhythm,
   });
   const [busy, setBusy] = useState(false);
+  const [returnLesson, setReturnLesson] = useState<ReturnType<typeof getReturnLesson>>(null);
+
+  useEffect(() => {
+    if (home) {
+      const updateReturnLesson = () => setReturnLesson(getReturnLesson());
+      updateReturnLesson();
+      window.addEventListener("pageshow", updateReturnLesson);
+      window.addEventListener("storage", updateReturnLesson);
+      return () => {
+        window.removeEventListener("pageshow", updateReturnLesson);
+        window.removeEventListener("storage", updateReturnLesson);
+      };
+    }
+    try {
+      localStorage.setItem(lastLessonKey, lesson.id);
+    } catch {
+      // The lesson still works when storage is blocked.
+    }
+  }, [home, lesson.id]);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const focusNextRef = useRef(false);
@@ -124,7 +171,11 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
     <div>
       {/* Screen 1 Opening Stage (Home) OR Clean Architectural Header (Week 1) */}
       {home ? (
-        <HeroStage ctaLabel={ctaLabel} onStartSession={scrollToBench} />
+        <HeroStage
+          ctaLabel={returnLesson?.label ?? ctaLabel}
+          ctaHref={returnLesson?.href}
+          onStartSession={scrollToBench}
+        />
       ) : (
         <section className="pt-10 pb-12 sm:pt-14 sm:pb-16" aria-labelledby="course-lesson-heading">
           <div className="shell-wrap grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-8">
