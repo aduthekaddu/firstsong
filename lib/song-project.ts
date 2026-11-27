@@ -17,7 +17,7 @@ export function parseSong(value: unknown): SongProject {
   ])) as SongProject;
 }
 
-export type TakeSpec = { id: string; label: string; maxSeconds: number; bars?: number; trim?: boolean };
+export type TakeSpec = { id: string; label: string; maxSeconds: number; bars?: number; trim?: boolean; fullWav?: boolean };
 
 export const studioTakes = {
   melody: { id: "melody", label: "Melody sketch", maxSeconds: 30 },
@@ -29,6 +29,6 @@ export const studioTakes = {
   chorusB: { id: "chorus-b", label: "Chorus B", maxSeconds: 90 },
   soundcheck: { id: "soundcheck", label: "Sound check", maxSeconds: 25 },
   final: { id: "final", label: "Final song", maxSeconds: 360, trim: true },
-  guitar: { id: "guitar", label: "Guitar pass (optional)", maxSeconds: 360 },
-  vocal: { id: "vocal", label: "Voice pass (optional)", maxSeconds: 360 },
+  guitar: { id: "guitar", label: "Guitar pass (optional)", maxSeconds: 360, fullWav: true },
+  vocal: { id: "vocal", label: "Voice pass (optional)", maxSeconds: 360, fullWav: true },
 } satisfies Record<string, TakeSpec>;

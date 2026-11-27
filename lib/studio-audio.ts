@@ -176,6 +176,20 @@ export function encodeWav(channels: readonly Float32Array[], rate: number, from:
   return new Blob([view.buffer], { type: "audio/wav" });
 }
 
+export async function decodeTake(blob: Blob) {
+  const audio = new AudioContext();
+  try {
+    return await audio.decodeAudioData(await blob.arrayBuffer());
+  } finally {
+    if (audio.state !== "closed") void audio.close().catch(() => {});
+  }
+}
+
+export function encodeDecodedWav(buffer: AudioBuffer, from = 0, to = buffer.duration) {
+  const channels = Array.from({ length: buffer.numberOfChannels }, (_, index) => buffer.getChannelData(index));
+  return encodeWav(channels, buffer.sampleRate, from, to);
+}
+
 export function downloadFile(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

@@ -41,7 +41,7 @@ const exercises: Record<string, Exercise> = {
   "week-5:versions": { takes: [studioTakes.chorusA, studioTakes.chorusB], fields: ["revision"] },
   "week-6:test": { takes: [studioTakes.soundcheck], cue: "Listen for a comfortable balance and clean sound. If the voice disappears, angle the phone closer to your mouth and try again." },
   "week-6:export": { takes: [studioTakes.final], sheet: true, backup: true },
-  "weeks-7-8:layers": { takes: [studioTakes.guitar, studioTakes.vocal], cue: "These are separate passes, not a synced multitrack project. For overdubs, download them and use a recording program with headphones." },
+  "weeks-7-8:layers": { takes: [studioTakes.guitar, studioTakes.vocal], cue: "Prepare a WAV for each pass, then import them into your recording program. These takes aren’t synced. Use headphones to record against a guide track and line up the passes by ear." },
   "weeks-7-8:mix": { sheet: true, cue: "In your recording program, bring the vocal forward, then bring the guitar up until it supports it. Export a lossless master and a smaller listening copy. Open both files before starting your next song." },
 };
 

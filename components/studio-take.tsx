@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Mic, Share, Square } from "lucide-react";
 import { scheduleMetronomeClick } from "../lib/sound";
-import { audioExtension, downloadFile, encodeWav, formatClock, getTake, hasRecordingInput, interruptedTakeMessage, sameStudioTake, saveTake, subscribeToPageReturn, subscribeToTakeChanges, type StudioTake as Take } from "../lib/studio-audio";
+import { audioExtension, decodeTake, downloadFile, encodeDecodedWav, formatClock, getTake, hasRecordingInput, interruptedTakeMessage, sameStudioTake, saveTake, subscribeToPageReturn, subscribeToTakeChanges, type StudioTake as Take } from "../lib/studio-audio";
 import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
@@ -285,9 +285,10 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
         )}
         {take && !active && !ending && (
           <button type="button" className="btn-secondary" onClick={() => downloadFile(take.blob, fileName)}>
-            <Download size={14} aria-hidden="true" /> Download {spec.trim ? "original" : "take"}
+            <Download size={14} aria-hidden="true" /> Download {spec.trim || spec.fullWav ? "original" : "take"}
           </button>
         )}
+        {take && spec.fullWav && !active && !ending && <FullWav key={`${take.createdAt}-${take.seconds}`} take={take} filenameId={filenameId} />}
         {shareFile && !active && !ending && (
           <button type="button" className="btn-secondary" onClick={() => { if (shareFile) void share(shareFile); }}><Share size={14} aria-hidden="true" /> Share audio</button>
         )}
@@ -295,6 +296,39 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
       {message && <p className="text-[13px] text-[var(--muted)]" role="status">{message}</p>}
       {take && spec.trim && !active && !ending && <TrimTake key={take.createdAt} take={take} filenameId={filenameId} />}
     </section>
+  );
+}
+
+function FullWav({ take, filenameId }: { take: Take; filenameId: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "error" | Blob>("idle");
+  async function prepare() {
+    setState("busy");
+    try {
+      setState(encodeDecodedWav(await decodeTake(take.blob)));
+    } catch {
+      setState("error");
+    }
+  }
+
+  const wav = state instanceof Blob ? state : null;
+  return (
+    <>
+      <button type="button" className="btn-secondary" disabled={state === "busy"}
+        onClick={() => {
+          if (wav) {
+            downloadFile(wav, `firstsong-${filenameId}.wav`);
+            setState("idle");
+          } else {
+            void prepare();
+          }
+        }}>
+        <Download size={14} aria-hidden="true" />
+        {wav ? "Save WAV" : state === "busy" ? "Preparing WAV…" : "Prepare WAV"}
+      </button>
+      <p role="status" className="basis-full empty:hidden text-[13px] text-[var(--muted)]">
+        {wav ? "Full-length WAV ready. Your original is unchanged." : state === "error" ? "This browser couldn’t make a WAV. You can still download the original." : ""}
+      </p>
+    </>
   );
 }
 
@@ -315,22 +349,19 @@ function TrimTake({ take, filenameId }: { take: Take; filenameId: string }) {
   async function preview() {
     setWorking(true);
     setMessage("");
-    let audio: AudioContext | undefined;
     try {
-      audio = new AudioContext();
-      const decoded = await audio.decodeAudioData(await take.blob.arrayBuffer());
+      const decoded = await decodeTake(take.blob);
       const start = Number(from);
       const end = to === "" ? decoded.duration : Number(to);
       if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start || end > decoded.duration + 0.05) {
         setMessage(`Choose a start before the end, within the ${decoded.duration.toFixed(1)}-second take.`);
         return;
       }
-      setTrimmed(encodeWav(Array.from({ length: decoded.numberOfChannels }, (_, i) => decoded.getChannelData(i)), decoded.sampleRate, start, end));
+      setTrimmed(encodeDecodedWav(decoded, start, end));
       setMessage("Trimmed preview ready. Your original is unchanged.");
     } catch {
       setMessage("This browser could not trim this recording. You can still download the original.");
     } finally {
-      if (audio && audio.state !== "closed") void audio.close().catch(() => {});
       setWorking(false);
     }
   }

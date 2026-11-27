@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { unzipSync } from "fflate";
 import { readFile } from "node:fs/promises";
 
-async function installTone(page: Page) {
-  await page.evaluate(() => {
+async function installTone(page: Page, delayed = false) {
+  await page.evaluate((leadIn) => {
     // Substitute the input signal only: the app still uses the real recorder,
     // storage, playback and WAV encoder in this browser.
     const getUserMedia = async () => {
@@ -14,7 +14,8 @@ async function installTone(page: Page) {
       const tone = audio.createOscillator();
       const gain = audio.createGain();
       tone.frequency.value = 440;
-      gain.gain.value = 0.2;
+      gain.gain.value = leadIn ? 0 : 0.2;
+      if (leadIn) gain.gain.setValueAtTime(0.2, audio.currentTime + 0.45);
       tone.connect(gain).connect(input);
       tone.start();
       document.documentElement.dataset.testAudioState = audio.state;
@@ -32,7 +33,7 @@ async function installTone(page: Page) {
       });
       return start.call(this, timeslice);
     };
-  });
+  }, delayed);
 }
 
 const interrupted = "The recording was interrupted. Any earlier take is unchanged.";
@@ -230,4 +231,65 @@ test("an open Writing Room refreshes playback and invalidates its ZIP after a re
   const original = Object.keys(files).find((file) => file.startsWith("takes/recording."));
   expect(original).toBeDefined();
   expect(Array.from(createHash("sha256").update(files[original!]).digest())).toEqual(updated);
+});
+
+test("optional passes export full-length WAVs without trimming silence or replacing originals", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("weeks-7-8/");
+  await installTone(page, true);
+
+  for (const [label, filename] of [
+    ["Guitar pass (optional)", "firstsong-guitar.wav"],
+    ["Voice pass (optional)", "firstsong-vocal.wav"],
+  ]) {
+    const take = page.getByRole("region", { name: label, exact: true });
+    await take.getByRole("button", { name: `Record ${label.toLowerCase()}`, exact: true }).click();
+    await expect(take.getByText(/0:01 \/ /)).toBeVisible();
+    await take.getByRole("button", { name: "Stop recording" }).click();
+    await expect(take.getByText("Take saved on this device.")).toBeVisible();
+    const playback = take.getByLabel(`${label} playback`);
+    await expect(playback).toHaveAttribute("src", /^blob:/);
+    const hash = await digest(playback);
+    const decoded = await playback.evaluate(async (element: HTMLAudioElement) => {
+      const audio = new AudioContext();
+      try {
+        const stored = await audio.decodeAudioData(await (await fetch(element.src)).arrayBuffer());
+        return { frames: stored.length, channels: stored.numberOfChannels, rate: stored.sampleRate };
+      } finally {
+        await audio.close();
+      }
+    });
+
+    await take.getByRole("button", { name: "Prepare WAV", exact: true }).click();
+    await expect(take.getByText("Full-length WAV ready. Your original is unchanged.")).toBeVisible();
+    const pending = page.waitForEvent("download");
+    await take.getByRole("button", { name: "Save WAV", exact: true }).click();
+    const file = await pending;
+    expect(file.suggestedFilename()).toBe(filename);
+    const wav = await readFile((await file.path())!);
+    expect(wav.subarray(0, 4).toString("ascii")).toBe("RIFF");
+    expect(wav.subarray(8, 12).toString("ascii")).toBe("WAVE");
+    expect(wav.readUInt16LE(20)).toBe(1);
+    expect(wav.readUInt16LE(22)).toBe(decoded.channels);
+    expect(wav.readUInt32LE(24)).toBe(decoded.rate);
+    expect(wav.readUInt16LE(34)).toBe(16);
+    expect(wav.readUInt32LE(40)).toBe(decoded.frames * decoded.channels * 2);
+    expect(wav.length).toBe(44 + decoded.frames * decoded.channels * 2);
+
+    let leadingPeak = 0;
+    let audiblePeak = 0;
+    const first50ms = 44 + Math.floor(decoded.rate * 0.05) * decoded.channels * 2;
+    for (let index = 44; index < wav.length; index += 2) {
+      const level = Math.abs(wav.readInt16LE(index));
+      if (index < first50ms) leadingPeak = Math.max(leadingPeak, level);
+      else audiblePeak = Math.max(audiblePeak, level);
+    }
+    expect(leadingPeak).toBeLessThan(256);
+    expect(audiblePeak).toBeGreaterThan(256);
+    expect(await digest(playback)).toEqual(hash);
+    const original = page.waitForEvent("download");
+    await take.getByRole("button", { name: "Download original", exact: true }).click();
+    expect(Array.from(createHash("sha256").update(await readFile((await (await original).path())!)).digest())).toEqual(hash);
+  }
 });
