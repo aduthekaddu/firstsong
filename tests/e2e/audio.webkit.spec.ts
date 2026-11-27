@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 
 test("WebKit records, reloads and exports non-silent audio", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
     // Substitute the input signal only: the app still uses the real recorder,
     // storage, playback and WAV encoder in this browser.
@@ -15,7 +17,9 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page }) =>
       gain.gain.value = 0.2;
       tone.connect(gain).connect(input);
       tone.start();
+      document.documentElement.dataset.testAudioState = audio.state;
       await audio.resume();
+      document.documentElement.dataset.testAudioState = audio.state;
       return input.stream;
     };
   });
@@ -23,7 +27,13 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page }) =>
   await page.goto("week-6/");
   await page.getByRole("button", { name: "Next step" }).click();
   await page.getByRole("button", { name: "Record final song", exact: true }).click();
-  await expect(page.getByText(/0:02 \/ /)).toBeVisible();
+  try {
+    await expect(page.getByText(/0:02 \/ /)).toBeVisible();
+  } catch (error) {
+    const status = await page.getByRole("region", { name: "Final song" }).innerText();
+    const state = await page.locator("html").getAttribute("data-test-audio-state");
+    throw new Error(`Could not start the WebKit recording. Audio state: ${state}. Recorder: ${status}. Page errors: ${errors.join("; ")}`, { cause: error });
+  }
   await page.getByRole("button", { name: "Stop recording", exact: true }).click();
   await expect(page.getByText("Take saved on this device.")).toBeVisible();
   await page.reload();
