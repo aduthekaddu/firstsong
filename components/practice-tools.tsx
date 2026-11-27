@@ -22,6 +22,7 @@ export function Tuner() {
 
   // Live mic tuner refs (mutated imperatively at 60fps, zero React re-renders)
   const micStreamRef = useRef<MediaStream | null>(null);
+  const micRequestRef = useRef<symbol | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
   const micUnsubRef = useRef<(() => void) | null>(null);
   const needleRef = useRef<HTMLDivElement | null>(null);
@@ -34,20 +35,26 @@ export function Tuner() {
   const [playing, setPlaying] = useState("");
   const [heard, setHeard] = useState<string[]>([]);
   const [micActive, setMicActive] = useState(false);
+  const [micPending, setMicPending] = useState(false);
   const [micError, setMicError] = useState("");
   const [message, setMessage] = useState("");
 
-  function stopMic() {
+  function releaseMic() {
+    micRequestRef.current = null;
     if (micUnsubRef.current) {
       micUnsubRef.current();
       micUnsubRef.current = null;
     }
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
-    if (micCtxRef.current) {
-      void micCtxRef.current.close();
-      micCtxRef.current = null;
-    }
+    const ctx = micCtxRef.current;
+    micCtxRef.current = null;
+    if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+  }
+
+  function stopMic() {
+    releaseMic();
+    setMicPending(false);
     setMicActive(false);
     if (needleRef.current) {
       needleRef.current.style.transform = "translate3d(0px, 0, 0)";
@@ -58,7 +65,7 @@ export function Tuner() {
   useEffect(() => {
     return () => {
       requestRef.current++;
-      stopMic();
+      releaseMic();
       try {
         activeSourceRef.current?.stop();
       } catch {
@@ -68,7 +75,8 @@ export function Tuner() {
   }, []);
 
   async function toggleMic() {
-    if (micActive) {
+    if (micRequestRef.current) return;
+    if (micStreamRef.current) {
       stopMic();
       setMessage("Microphone tuner paused.");
       return;
@@ -79,6 +87,10 @@ export function Tuner() {
       return;
     }
 
+    const request = Symbol();
+    micRequestRef.current = request;
+    setMicPending(true);
+    setMessage("");
     setMicError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -88,14 +100,19 @@ export function Tuner() {
           autoGainControl: false,
         },
       });
+      if (micRequestRef.current !== request) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      // Register resources before setup so errors can release partial work.
+      micStreamRef.current = stream;
       const ctx = new AudioContext();
+      micCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
       source.connect(analyser);
 
-      micStreamRef.current = stream;
-      micCtxRef.current = ctx;
       setMicActive(true);
       setMessage("Listening to your guitar. Pluck one open string at a time.");
 
@@ -151,12 +168,18 @@ export function Tuner() {
         }
       });
     } catch (error) {
+      if (micRequestRef.current !== request) return;
       stopMic();
       setMicError(
         error instanceof DOMException && error.name === "NotAllowedError"
           ? "Microphone access was declined. Tune by ear with the six reference strings below."
           : "Microphone could not start. Tune by ear with the six reference strings below."
       );
+    } finally {
+      if (micRequestRef.current === request) {
+        micRequestRef.current = null;
+        setMicPending(false);
+      }
     }
   }
 
@@ -217,6 +240,7 @@ export function Tuner() {
           <button
             type="button"
             onClick={() => void toggleMic()}
+            disabled={micPending}
             className={micActive ? "btn-primary" : "btn-secondary"}
             data-tone={micActive ? "accent" : undefined}
           >
@@ -225,7 +249,7 @@ export function Tuner() {
             ) : (
               <Mic size={15} strokeWidth={1.5} aria-hidden="true" />
             )}
-            <span>{micActive ? "Stop mic tuner" : "Listen with mic"}</span>
+            <span>{micActive ? "Stop mic tuner" : micPending ? "Waiting for microphone…" : "Listen with mic"}</span>
           </button>
         </div>
 

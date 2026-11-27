@@ -159,6 +159,35 @@ test("mic denial does not strand the learner", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
 });
 
+test("leaving the tuner releases a microphone granted after the step has closed", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("./#lesson");
+  await page.evaluate(() => {
+    const media = navigator.mediaDevices;
+    const request = media.getUserMedia.bind(media);
+    media.getUserMedia = async (constraints) => {
+      const stream = await request(constraints);
+      Object.defineProperty(window, "firstsongTestMicTrack", { value: stream.getAudioTracks()[0], configurable: true });
+      await new Promise<void>((resolve) => {
+        document.addEventListener("firstsong-test-grant", () => resolve(), { once: true });
+        document.documentElement.dataset.testMicPending = "true";
+      });
+      return stream;
+    };
+  });
+  await page.getByRole("button", { name: "Listen with mic" }).click();
+  await expect(page.getByRole("button", { name: "Waiting for microphone…" })).toBeDisabled();
+  await expect(page.locator("html")).toHaveAttribute("data-test-mic-pending", "true");
+  const trackState = () => page.evaluate(() => Object.getOwnPropertyDescriptor(window, "firstsongTestMicTrack")?.value.readyState);
+  expect(await trackState()).toBe("live");
+  await next(page);
+  await expect(page.getByRole("heading", { name: "Find four steady beats" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Waiting for microphone…" })).toHaveCount(0);
+  await page.evaluate(() => document.dispatchEvent(new Event("firstsong-test-grant")));
+  await expect.poll(trackState).toBe("ended");
+});
+
 test("the songbook opens a take saved in the previous storage format", async ({ page }) => {
   await page.goto("./");
   await page.evaluate(async () => {
