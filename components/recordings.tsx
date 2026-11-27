@@ -487,9 +487,9 @@ function TakeSlot({
 }
 
 export function LegacyTakeShelf() {
-  const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake });
-  const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake });
-  const hook = useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake });
+  const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
+  const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
+  const hook = useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
   const takes = { "rhythm-a": takeA.value, "rhythm-b": takeB.value, hook: hook.value };
   const saved = legacyTakes.map(({ id, label }) => ({ key: id, title: label, take: takes[id] })).filter(({ take }) => take !== null);
   if (!saved.length) return null;

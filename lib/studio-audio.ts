@@ -9,6 +9,67 @@ export function hasRecordingInput(stream: MediaStream | null): boolean {
 
 const volatile = new Map<string, StudioTake>();
 
+type TakeListener = (id: string) => void;
+const takeListeners = new Set<TakeListener>();
+const takeChannelName = "firstsong:studio-takes:v1";
+let takeChannel: BroadcastChannel | undefined;
+
+export function subscribeToTakeChanges(listener: TakeListener) {
+  takeListeners.add(listener);
+  if (!takeChannel && typeof window !== "undefined" && typeof BroadcastChannel !== "undefined") {
+    try {
+      takeChannel = new BroadcastChannel(takeChannelName);
+      takeChannel.onmessage = ({ data }) => {
+        if (typeof data === "string") for (const receive of takeListeners) receive(data);
+      };
+    } catch {
+      // Focus and page restoration refresh views when broadcasting is unavailable.
+    }
+  }
+  return () => {
+    takeListeners.delete(listener);
+    if (!takeListeners.size) {
+      takeChannel?.close();
+      takeChannel = undefined;
+    }
+  };
+}
+
+function notifyTakeSaved(id: string) {
+  for (const listener of takeListeners) listener(id);
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+  try {
+    const sender = takeChannel ?? new BroadcastChannel(takeChannelName);
+    try {
+      sender.postMessage(id);
+    } finally {
+      if (sender !== takeChannel) sender.close();
+    }
+  } catch {
+    // A committed take is still saved if another tab cannot be notified.
+  }
+}
+
+export function subscribeToPageReturn(refresh: () => void) {
+  function visible() {
+    if (document.visibilityState === "visible") refresh();
+  }
+  window.addEventListener("focus", refresh);
+  window.addEventListener("pageshow", refresh);
+  document.addEventListener("visibilitychange", visible);
+  return () => {
+    window.removeEventListener("focus", refresh);
+    window.removeEventListener("pageshow", refresh);
+    document.removeEventListener("visibilitychange", visible);
+  };
+}
+
+export function sameStudioTake(a: StudioTake | null, b: StudioTake | null) {
+  if (a === b) return true;
+  return !!a && !!b && a.createdAt === b.createdAt && a.seconds === b.seconds
+    && a.blob.size === b.blob.size && a.blob.type === b.blob.type;
+}
+
 function openTakes(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open("firstsong-studio", 1);
@@ -55,6 +116,7 @@ export async function saveTake(id: string, take: StudioTake) {
   const stored: StoredTake = { bytes: await blob.arrayBuffer(), type: blob.type, seconds, createdAt };
   await transact("readwrite", (store) => store.put(stored, id));
   if (volatile.get(id) === take) volatile.delete(id);
+  notifyTakeSaved(id);
 }
 
 export function audioExtension(type: string) {

@@ -184,3 +184,50 @@ test("WebKit keeps a separate Writing Room take across reopening and exports it"
   expect(take).toBeDefined();
   expect(Array.from(createHash("sha256").update(files[take!]).digest())).toEqual(original);
 });
+
+test("an open Writing Room refreshes playback and invalidates its ZIP after a retake in another tab", async ({ page, context }) => {
+  await context.grantPermissions(["microphone"]);
+  await page.goto("songbook/");
+  await page.getByRole("button", { name: "New blank song" }).click();
+  await page.getByLabel("Song title").fill("Both windows");
+  await installTone(page);
+
+  async function capture(first: boolean) {
+    await page.getByRole("button", { name: first ? "Record demo take" : "Record demo take again", exact: true }).click();
+    await expect(page.getByText(first ? /0:01 \/ / : /0:02 \/ /)).toBeVisible();
+    await page.getByRole("button", { name: "Stop recording", exact: true }).click();
+    await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  }
+
+  await capture(true);
+  const other = await context.newPage();
+  await other.goto(page.url());
+  const player = other.getByLabel("Demo take playback");
+  await expect(player).toHaveAttribute("src", /^blob:/);
+  const before = await digest(player);
+  const prepare = other.getByRole("button", { name: "Back up your song" });
+  const save = other.getByRole("button", { name: "Save ZIP" });
+  await prepare.click();
+  await expect(save).toBeVisible();
+
+  await capture(false);
+  const writerPlayer = page.getByLabel("Demo take playback");
+  await expect(writerPlayer).toHaveAttribute("src", /^blob:/);
+  const updated = await digest(writerPlayer);
+  expect(updated).not.toEqual(before);
+  await expect(save).toHaveCount(0);
+  await expect.poll(async () => {
+    try { return await digest(player); } catch { return []; }
+  }).toEqual(updated);
+
+  const individual = other.waitForEvent("download");
+  await other.getByRole("button", { name: "Download original" }).click();
+  expect(Array.from(createHash("sha256").update(await readFile((await (await individual).path())!)).digest())).toEqual(updated);
+  await prepare.click();
+  const zip = other.waitForEvent("download");
+  await save.click();
+  const files = unzipSync(await readFile((await (await zip).path())!));
+  const original = Object.keys(files).find((file) => file.startsWith("takes/recording."));
+  expect(original).toBeDefined();
+  expect(Array.from(createHash("sha256").update(files[original!]).digest())).toEqual(updated);
+});

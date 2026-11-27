@@ -472,3 +472,16 @@ test("reviewing from an older tab keeps a completed week and its checkpoint", as
   await expect(older.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
   await expect(older.getByText("4 of 4 steps done", { exact: false })).toBeVisible();
 });
+
+test("an open Songbook picks up new course takes from another tab", async ({ page, context }) => {
+  await context.grantPermissions(["microphone"]);
+  const shelf = await context.newPage();
+  await shelf.goto("songbook/");
+  await expect(shelf.getByRole("button", { name: "Back up your song" })).toBeEnabled();
+  const player = shelf.getByLabel("Sound check playback");
+  await expect(player).toHaveCount(0);
+
+  await page.goto("week-6/");
+  await record(page, "sound check");
+  await expect(player).toHaveAttribute("src", /^blob:/);
+});

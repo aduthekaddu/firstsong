@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Mic, Share, Square } from "lucide-react";
 import { scheduleMetronomeClick } from "../lib/sound";
-import { audioExtension, downloadFile, encodeWav, formatClock, getTake, hasRecordingInput, interruptedTakeMessage, saveTake, type StudioTake as Take } from "../lib/studio-audio";
+import { audioExtension, downloadFile, encodeWav, formatClock, getTake, hasRecordingInput, interruptedTakeMessage, sameStudioTake, saveTake, subscribeToPageReturn, subscribeToTakeChanges, type StudioTake as Take } from "../lib/studio-audio";
 import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
@@ -19,6 +19,7 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
   const [beat, setBeat] = useState(1);
   const [elapsed, setElapsed] = useState(0);
   const [message, setMessage] = useState("");
+  const [refreshCount, refresh] = useState(0);
   const phaseRef = useRef<Phase>("idle");
   const epoch = useRef(0);
   const mic = useRef<MediaStream | null>(null);
@@ -42,18 +43,27 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
   }
 
   useEffect(() => {
-    let active = true;
-    getTake(spec.id).then(
-      (data) => { if (active) setTake(data); },
-      () => { if (active) setMessage("Saved takes could not be read. If you record, download the take before closing this page."); },
-    ).finally(() => { if (active) setReady(true); });
+    const requestRefresh = () => refresh((value) => value + 1);
+    const stopWatching = subscribeToTakeChanges((id) => { if (id === spec.id) requestRefresh(); });
+    const stopPageReturn = subscribeToPageReturn(requestRefresh);
     return () => {
-      active = false;
+      stopWatching();
+      stopPageReturn();
       epoch.current++;
       if (recorder.current?.state === "recording") recorder.current.stop();
       release();
     };
   }, [spec.id]);
+
+  useEffect(() => {
+    if (phase !== "idle") return;
+    let active = true;
+    getTake(spec.id).then(
+      (data) => { if (active) setTake((prior) => sameStudioTake(prior, data) ? prior : data); },
+      () => { if (active) setMessage((prior) => prior || "Saved takes could not be read. If you record, download the take before closing this page."); },
+    ).finally(() => { if (active) setReady(true); });
+    return () => { active = false; };
+  }, [spec.id, phase, refreshCount]);
 
   useEffect(() => {
     if (!take) return;
