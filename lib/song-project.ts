@@ -4,12 +4,16 @@ export type SongProject = Record<SongField, string>;
 
 export const emptySong = Object.fromEntries(songFields.map((field) => [field, ""])) as SongProject;
 
+export function songFieldLimit(field: SongField) {
+  return field === "title" || field === "keyword" ? 100 : 4000;
+}
+
 export function parseSong(value: unknown): SongProject {
   if (!value || typeof value !== "object") return emptySong;
   const input = value as Record<string, unknown>;
   return Object.fromEntries(songFields.map((field) => [
     field,
-    typeof input[field] === "string" ? input[field].slice(0, field === "title" || field === "keyword" ? 100 : 4000) : "",
+    typeof input[field] === "string" ? input[field].slice(0, songFieldLimit(field)) : "",
   ])) as SongProject;
 }
 

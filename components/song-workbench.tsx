@@ -4,10 +4,10 @@ import { useId, useState } from "react";
 import { RecordingLink as Link } from "./recording-navigation";
 import { Download } from "lucide-react";
 import { buildSongSheet, downloadFile } from "../lib/studio-audio";
-import { emptySong, parseSong, studioTakes, type SongField, type TakeSpec } from "../lib/song-project";
+import { songFieldLimit, studioTakes, type SongField, type TakeSpec } from "../lib/song-project";
+import { useSongProject } from "../lib/use-song-project";
 import { chords } from "../lib/chords";
 import { ChordDiagram } from "./chord-diagram";
-import { useLocalValue } from "../lib/local-value";
 import { StudioTake } from "./studio-take";
 import { LegacyTakeShelf } from "./recordings";
 
@@ -62,7 +62,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
   const exercise: Exercise | undefined = archive
     ? { fields: ["title", "hook", "verseOne", "chorus", "verseTwo", "chords", "ending", "arrangement", "revision"] as SongField[], takes: Object.values(studioTakes), sheet: true }
     : readOnly ? checkpoints[lessonId] : exercises[`${lessonId}:${stepId}`];
-  const song = useLocalValue({ key: "song-project", initial: emptySong, parse: parseSong });
+  const song = useSongProject();
   const [active, setActive] = useState<string | null>(null);
   const id = useId();
   if (!exercise) return null;
@@ -80,7 +80,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
           <p className="text-[13px] font-medium text-[var(--ink)]">From your earlier practice</p>
           {firstLine.trim() && <p className="whitespace-pre-wrap break-words text-[15px] text-[var(--ink-soft)]">{firstLine}</p>}
           {oldNotes.trim() && <p className="whitespace-pre-wrap break-words text-[14px] text-[var(--muted)]">{oldNotes}</p>}
-          {firstLine.trim() && !song.value.hook && <button type="button" className="btn-secondary" disabled={!song.ready} onClick={() => song.save({ ...song.value, hook: firstLine })}>Use your Stage 0 line</button>}
+          {firstLine.trim() && !song.value.hook && <button type="button" className="btn-secondary" disabled={!song.ready} onClick={() => song.save("hook", firstLine)}>Use your Stage 0 line</button>}
         </div>
       )}
 
@@ -104,7 +104,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
           {exercise.fields.map((field) => {
             const copy = fields[field];
             const fieldId = `${id}-${field}`;
-            const limit = field === "title" || field === "keyword" ? 100 : 4000;
+            const limit = songFieldLimit(field);
             const inputClass = "w-full min-w-0 rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-2.5 text-base text-[var(--ink)]";
             const props = {
               id: fieldId,
@@ -113,7 +113,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
               maxLength: limit,
               disabled: !song.ready,
               className: inputClass,
-              onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => song.save({ ...song.value, [field]: event.target.value }),
+              onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => song.save(field, event.target.value),
             };
             return readOnly ? song.value[field].trim() && (
               <div key={field} className="space-y-1">

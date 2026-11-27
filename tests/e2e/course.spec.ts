@@ -118,6 +118,36 @@ test("every exported lesson fits the smallest mobile viewport", async ({ page })
   }
 });
 
+test("song edits in different tabs preserve each other and the earlier project", async ({ page, context }) => {
+  await context.addInitScript(() => {
+    const key = "firstsong:v1:song-project";
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify({ title: "Old title", verseOne: "Old verse", chorus: "Keep the chorus" }));
+    }
+  });
+  const second = await context.newPage();
+  await Promise.all([page.goto("week-4/"), second.goto("week-4/")]);
+  const title = second.getByLabel("Song title");
+  const verse = page.getByLabel("Verse 1");
+  await expect(title).toHaveValue("Old title");
+  await expect(verse).toHaveValue("Old verse");
+  await verse.fill("A new verse from the first tab");
+  await title.fill("New title from the second tab");
+  await expect(second.getByLabel("Verse 1")).toHaveValue("A new verse from the first tab");
+  await expect(page.getByLabel("Song title")).toHaveValue("New title from the second tab");
+  await second.reload();
+  await expect(title).toHaveValue("New title from the second tab");
+  await expect(second.getByLabel("Verse 1")).toHaveValue("A new verse from the first tab");
+  await title.fill("");
+  await expect(page.getByLabel("Song title")).toHaveValue("");
+  await page.goto("songbook/");
+  await expect(page.getByText("Keep the chorus", { exact: true })).toBeVisible();
+  await expect(page.getByText("A new verse from the first tab", { exact: true })).toBeVisible();
+  await page.goto("week-4/");
+  await expect(page.getByLabel("Song title")).toBeEnabled();
+  await expect(page.getByLabel("Song title")).toHaveValue("");
+});
+
 test("mic denial does not strand the learner", async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
     value: () => Promise.reject(new DOMException("denied", "NotAllowedError")),
