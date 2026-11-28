@@ -16,7 +16,8 @@ import {
   Tuner,
 } from "./practice-tools";
 import { Recordings } from "./recordings";
-import { firstLineKey, maxLineLength, parseFirstLine, parseRhythm, rhythmKey, type Rhythm } from "../lib/stage-zero";
+import { maxLineLength } from "../lib/stage-zero";
+import { useStageZeroWriting } from "../lib/use-stage-zero-writing";
 import { RecordingLink as Link, useRecordingNavigation } from "./recording-navigation";
 import { SongWorkbench } from "./song-workbench";
 
@@ -41,16 +42,11 @@ function getReturnLesson(): { href: string; label: string } | null {
 
 export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: boolean }) {
   const progress = useLessonProgress(lesson);
-  const line = useLocalValue({ key: firstLineKey, initial: "", parse: parseFirstLine });
+  const writing = useStageZeroWriting();
   const weekOneNotes = useLocalValue({
     key: "week-1:notes",
     initial: "",
     parse: parseNotes,
-  });
-  const rhythm = useLocalValue<Rhythm | null>({
-    key: rhythmKey,
-    initial: null,
-    parse: parseRhythm,
   });
   const [busy, setBusy] = useState(false);
   const [finalTakeEmpty, setFinalTakeEmpty] = useState(false);
@@ -89,7 +85,9 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
   );
   const totalMinutes = lesson.steps.reduce((sum, item) => sum + item.minutes, 0);
   const completionRatio = lesson.steps.length > 0 ? visited.size / lesson.steps.length : 0;
-  const warning = progress.warning || line.warning || rhythm.warning || weekOneNotes.warning;
+  const stageZeroTemporary = (home || lesson.id === "week-1") && (writing.lineTemporary || writing.rhythmTemporary);
+  const warning = progress.warning || weekOneNotes.warning ||
+    ((home || lesson.id === "week-1") && writing.unreadable ? "Some saved Stage 0 writing could not be read in this browser." : "");
 
   function scrollToBench() {
     const target = document.getElementById("lesson");
@@ -331,9 +329,9 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     {home && (
                       <Recordings
                         mode="hook"
-                        line={line.value}
-                        rhythm={rhythm.value}
-                        onRhythm={rhythm.save}
+                        line={writing.firstLine}
+                        rhythm={writing.rhythm}
+                        onRhythm={writing.saveRhythm}
                         onBusy={handleRecordingBusy}
                       />
                     )}
@@ -357,7 +355,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                             Your concrete line
                           </label>
                           <span className="font-mono-num text-[13px] text-[var(--muted)]">
-                            {line.value.length}/{maxLineLength}
+                            {writing.firstLine.length}/{maxLineLength}
                           </span>
                         </div>
                         <p className="text-[14px] text-[var(--muted)]" id="line-hint">
@@ -368,17 +366,17 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                           aria-describedby="line-hint"
                           rows={3}
                           maxLength={maxLineLength}
-                          disabled={!line.ready}
-                          value={line.value}
-                          onChange={(event) => line.save(event.target.value)}
+                          disabled={!writing.ready}
+                          value={writing.firstLine}
+                          onChange={(event) => writing.saveLine(event.target.value)}
                           placeholder="Write one sentence you would actually say out loud"
                           className="w-full rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-4 text-[16px] text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--ink)] focus:bg-[var(--bg)]"
                         />
-                        {line.value.trim() && (
+                        {writing.firstLine.trim() && (
                           <div className="border-l-2 border-[var(--ink)] pl-4 pt-1">
-                            <p className="text-[13px] text-[var(--muted)]">Saved line</p>
+                            <p className="text-[13px] text-[var(--muted)]">{writing.lineTemporary ? "Line in this tab" : "Saved line"}</p>
                             <p className="mt-1 text-[22px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                              “{line.value.trim()}”
+                              “{writing.firstLine.trim()}”
                             </p>
                           </div>
                         )}
@@ -387,16 +385,16 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
 
                     {(step.kind === "compare" || step.kind === "hook") && (
                       <div className="space-y-5">
-                        {line.value.trim() && (
+                        {writing.firstLine.trim() && (
                           <blockquote className="m-0 border-l-2 border-[var(--accent)] pl-5 text-[22px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                            “{line.value}”
+                            “{writing.firstLine}”
                           </blockquote>
                         )}
                         <Recordings
                           mode={step.kind}
-                          line={line.value}
-                          rhythm={rhythm.value}
-                          onRhythm={rhythm.save}
+                          line={writing.firstLine}
+                          rhythm={writing.rhythm}
+                          onRhythm={writing.saveRhythm}
                           onBusy={handleRecordingBusy}
                         />
                       </div>
@@ -410,7 +408,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     )}
 
                     {step.kind === "practice" && (
-                      <SongWorkbench lessonId={lesson.id} stepId={step.id} firstLine={line.value}
+                      <SongWorkbench lessonId={lesson.id} stepId={step.id} firstLine={writing.firstLine}
                         oldNotes={weekOneNotes.value} onBusy={handleRecordingBusy}
                         onSaved={() => progress.save(step.id)} />
                     )}
@@ -431,6 +429,14 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   </div>
                 )}
 
+                {stageZeroTemporary && (
+                  <div className="space-y-2">
+                    <p className="text-[13px] text-[var(--accent)]" role="status">
+                      Your Stage 0 changes are only in this tab. Save a ZIP from your songbook before reloading or closing.
+                    </p>
+                    <button type="button" className="btn-secondary" onClick={writing.retry}>Retry saving Stage 0 changes</button>
+                  </div>
+                )}
                 {warning && (
                   <p className="text-[13px] text-[var(--accent)]" role="status">
                     {warning}

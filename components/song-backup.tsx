@@ -6,7 +6,7 @@ import { Download } from "lucide-react";
 import { subscribeToLegacyTakeChanges } from "../lib/legacy-takes";
 import type { BackupOmission } from "../lib/song-backup";
 import { studioTakes, type SongProject } from "../lib/song-project";
-import { stageZeroWritingKeys } from "../lib/stage-zero";
+import { stageZeroWritingKeys, subscribeToStageZeroWriting } from "../lib/stage-zero";
 import { writingTakeId } from "../lib/writing-room";
 import { downloadFile, subscribeToPageReturn, subscribeToTakeChanges } from "../lib/studio-audio";
 
@@ -31,12 +31,14 @@ export function SongBackup({ song, ready, recording, projectId, notesUnreadable 
     }
     const stopWatching = subscribeToTakeChanges((id) => { if (relevant.has(id)) invalidate(); });
     const stopLegacy = !projectId ? subscribeToLegacyTakeChanges(invalidate) : undefined;
+    const stopWriting = !projectId ? subscribeToStageZeroWriting(invalidate) : undefined;
     const stopPageReturn = subscribeToPageReturn(invalidate);
     window.addEventListener("storage", legacyChanged);
     return () => {
       revision.current++;
       stopWatching();
       stopLegacy?.();
+      stopWriting?.();
       stopPageReturn();
       window.removeEventListener("storage", legacyChanged);
     };

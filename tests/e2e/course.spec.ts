@@ -967,10 +967,17 @@ for (const occupied of [false, true]) {
   });
 }
 
-test("a Stage 0 hook with a refused write can still be played and exported in the same tab", async ({ page, context }) => {
+test("Stage 0 audio and writing survive refused writes in the same tab", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
   await page.goto("./#lesson");
+  const originalLine = "Rain on the kitchen floor";
+  const currentLine = "Rain against the empty steps";
+  const line = page.getByLabel("Your concrete line");
+  const writingWarning = page.getByText("Your Stage 0 changes are only in this tab.", { exact: false });
+  await goStep(page, "Write one line");
+  await line.fill(originalLine);
+  await expect(page.getByText("Saved line", { exact: true })).toBeVisible();
   await goStep(page, "Record your hook");
 
   const recordHook = async (again = false, elapsed = 1) => {
@@ -988,15 +995,34 @@ test("a Stage 0 hook with a refused write can still be played and exported in th
   const original = await audioBytes(player);
   await page.evaluate(() => {
     const setItem = Storage.prototype.setItem;
+    const hook = localStorage.getItem("firstsong:v1:take:hook")!;
+    localStorage.setItem("firstsong:v1:take:rhythm-a", hook);
+    localStorage.setItem("firstsong:v1:take:rhythm-b", hook);
+    localStorage.setItem("firstsong:v1:rhythm", JSON.stringify("rhythm-a"));
     document.documentElement.dataset.rejectStageZeroHook = "true";
+    document.documentElement.dataset.rejectStageZeroLine = "true";
+    document.documentElement.dataset.rejectStageZeroRhythm = "true";
     Storage.prototype.setItem = function (key, value) {
-      if (key === "firstsong:v1:take:hook" && document.documentElement.dataset.rejectStageZeroHook === "true") {
+      const { rejectStageZeroHook, rejectStageZeroLine, rejectStageZeroRhythm } = document.documentElement.dataset;
+      if ((key === "firstsong:v1:take:hook" && rejectStageZeroHook) ||
+          (key === "firstsong:v1:line" && rejectStageZeroLine) ||
+          (key === "firstsong:v1:rhythm" && rejectStageZeroRhythm)) {
         throw new DOMException("Simulated quota exceeded", "QuotaExceededError");
       }
       setItem.call(this, key, value);
     };
   });
 
+  await goStep(page, "Write one line");
+  await line.fill(currentLine);
+  await expect(page.getByText("Line in this tab", { exact: true })).toBeVisible();
+  await expect(page.getByText("Saved line", { exact: true })).toHaveCount(0);
+  await goStep(page, "Hum it two ways");
+  await page.getByRole("button", { name: "Keep B" }).click();
+  await expect(page.getByRole("button", { name: "Keep B" })).toHaveAttribute("aria-pressed", "true");
+  await goStep(page, "Record your hook");
+  await expect(writingWarning).toBeVisible();
+  await expect(page.getByText("Rhythm kept: Take B (pause before key word)")).toBeVisible();
   await recordHook(true, 2);
   await expect(warning).toBeVisible();
   const temporary = await audioBytes(player);
@@ -1005,18 +1031,30 @@ test("a Stage 0 hook with a refused write can still be played and exported in th
   await page.getByRole("link", { name: "Download take", exact: true }).click();
   expect(await readFile((await (await download).path())!)).toEqual(Buffer.from(temporary));
 
+  async function downloadZip(target: typeof page) {
+    await target.getByRole("button", { name: "Back up your song" }).click();
+    const pending = target.waitForEvent("download");
+    await target.getByRole("button", { name: "Save ZIP", exact: true }).press("Enter");
+    return unzipSync(await readFile((await (await pending).path())!));
+  }
   const other = await context.newPage();
   await other.goto("songbook/");
   const otherHook = other.getByLabel("Stage 0 hook playback");
   await expect(otherHook).toHaveAttribute("src", /^data:audio\//);
   expect(await audioBytes(otherHook)).toEqual(original);
   await expect(other.getByText("This take is only available in this tab.", { exact: false })).toHaveCount(0);
+  const otherFiles = await downloadZip(other);
+  expect(JSON.parse(strFromU8(otherFiles["manifest.json"])).stageZero).toEqual({ firstLine: originalLine, rhythm: "rhythm-a" });
   await other.close();
 
   await page.getByRole("button", { name: "Finish Stage 0" }).click();
   await expect(warning).toBeVisible();
   expect(await audioBytes(player)).toEqual(temporary);
   await page.getByRole("link", { name: "Continue to Week 1" }).click();
+  await goStep(page, "Find a title line");
+  await expect(writingWarning).toBeVisible();
+  await page.getByRole("button", { name: "Use your Stage 0 line" }).click();
+  await expect(page.getByLabel("Title line")).toHaveValue(currentLine);
   await goStep(page, "Try two or three notes");
   await page.getByText("Listen to your first hook", { exact: true }).click();
   const reference = page.getByLabel("Stage 0 hook reference");
@@ -1026,17 +1064,27 @@ test("a Stage 0 hook with a refused write can still be played and exported in th
   const shelf = page.getByLabel("Stage 0 hook playback");
   await expect(shelf).toHaveAttribute("src", /^data:audio\//);
   expect(await audioBytes(shelf)).toEqual(temporary);
-  await page.getByRole("button", { name: "Back up your song" }).click();
-  const pending = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save ZIP", exact: true }).press("Enter");
-  const files = unzipSync(await readFile((await (await pending).path())!));
+  const files = await downloadZip(page);
+  expect(JSON.parse(strFromU8(files["manifest.json"])).stageZero).toEqual({ firstLine: currentLine, rhythm: "rhythm-b" });
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain(`Stage 0 first line\n${currentLine}`);
   const track = Object.keys(files).find((name) => name.startsWith("takes/stage-0-hook."));
   expect(track).toBeDefined();
   expect(Buffer.from(files[track!])).toEqual(Buffer.from(temporary));
 
   await page.getByRole("link", { name: "Firstsong", exact: true }).click();
   await expect(warning).toBeVisible();
-  await page.evaluate(() => delete document.documentElement.dataset.rejectStageZeroHook);
+  await page.evaluate(() => {
+    delete document.documentElement.dataset.rejectStageZeroHook;
+    delete document.documentElement.dataset.rejectStageZeroLine;
+  });
+  const retryWriting = page.getByRole("button", { name: "Retry saving Stage 0 changes" });
+  await retryWriting.click();
+  await expect(writingWarning).toBeVisible();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("firstsong:v1:line")!))).toBe(currentLine);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("firstsong:v1:rhythm")!))).toBe("rhythm-a");
+  await page.evaluate(() => delete document.documentElement.dataset.rejectStageZeroRhythm);
+  await retryWriting.click();
+  await expect(writingWarning).toHaveCount(0);
   await recordHook(true);
   await expect(page.getByText("Take saved in this browser and ready to play back.")).toBeVisible();
   await expect(warning).toHaveCount(0);
@@ -1044,4 +1092,8 @@ test("a Stage 0 hook with a refused write can still be played and exported in th
   await page.reload();
   await expect(player).toHaveAttribute("src", /^data:audio\//);
   expect(await audioBytes(player)).toEqual(committed);
+  await expect(page.getByText("Rhythm kept: Take B (pause before key word)")).toBeVisible();
+  await goStep(page, "Write one line");
+  await expect(line).toHaveValue(currentLine);
+  await expect(page.getByText("Saved line", { exact: true })).toBeVisible();
 });
