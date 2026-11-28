@@ -197,6 +197,36 @@ test("the final lyric and chord cue stays readable beside the recorder at 320px"
   await expect(cue).toBeVisible();
 });
 
+test("chord diagrams let a learner sound unmuted strings with keys or a tap", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 750 });
+  await page.goto("week-2/");
+  const em = page.getByRole("group", { name: "E minor chord controls" });
+  const asus = page.getByRole("group", { name: "A suspended second chord controls" });
+  const lowE = em.getByRole("button", { name: "Play Low E, open", exact: true });
+  const highE = em.getByRole("button", { name: "Play High E, open", exact: true });
+  const a = em.getByRole("button", { name: "Play A, fret 2", exact: true });
+  await expect(em.getByRole("img", { name: /guitar chord diagram/ })).toBeVisible();
+  await expect(asus.getByRole("img", { name: /Low E string muted/ })).toBeVisible();
+  await expect(asus.getByRole("button", { name: /^Play / })).toHaveCount(5);
+  await expect(asus.getByRole("button", { name: /^Play Low E/ })).toHaveCount(0);
+
+  await lowE.focus();
+  await page.keyboard.press("Enter");
+  await expect(lowE).toHaveAttribute("data-playing", "true");
+  await expect(lowE).toHaveCSS("outline-style", "solid");
+  await page.keyboard.press("Tab");
+  await expect(a).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(a).toHaveAttribute("data-playing", "true");
+  await highE.click();
+  await expect(highE).toHaveAttribute("data-playing", "true");
+  await expect(highE).not.toHaveAttribute("data-playing", "true");
+
+  await em.getByRole("button", { name: "Strum E minor", exact: true }).press("Enter");
+  await expect(highE).toHaveAttribute("data-playing", "true");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test("every exported lesson fits the smallest mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 750 });
   for (const route of ["", "week-1/", "week-2/", "week-3/", "week-4/", "week-5/", "week-6/", "weeks-7-8/", "songbook/", "chords/"]) {
