@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { RecordingLink as Link, RecordingNavigationProvider, useRecordingNavigation } from "./recording-navigation";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Command, Menu, Moon, Sun, X } from "lucide-react";
 import { closeDialogSmoothly } from "../lib/dialog-close";
@@ -16,7 +16,8 @@ import {
 
 const navItems = [
   { href: "/", label: "Stage 0" },
-  { href: "/week-1/", label: "Week 1" },
+  { href: "/#curriculum", label: "Course" },
+  { href: "/songbook/", label: "Songbook" },
   { href: "/chords/", label: "Chords" },
 ] as const;
 
@@ -28,14 +29,18 @@ type PaletteCommand = {
   run: () => void;
 };
 
-export function SiteFrame({
+type FrameProps = { path: string; children: ReactNode };
+
+export function SiteFrame(props: FrameProps) {
+  return <RecordingNavigationProvider><Frame {...props} /></RecordingNavigationProvider>;
+}
+
+function Frame({
   path,
   children,
-}: {
-  path: "/" | "/week-1/" | "/chords/" | "/404";
-  children: ReactNode;
-}) {
+}: FrameProps) {
   const router = useRouter();
+  const { canNavigate } = useRecordingNavigation();
   const [theme, setTheme] = useState<ResolvedTheme>("light");
   const [mounted, setMounted] = useState(false);
   const [viewportLabel, setViewportLabel] = useState("");
@@ -168,6 +173,10 @@ export function SiteFrame({
     setTheme(next);
   }
 
+  function navigate(href: string) {
+    if (canNavigate()) router.push(href);
+  }
+
   const commands: PaletteCommand[] = [
     {
       id: "go-stage0",
@@ -176,7 +185,7 @@ export function SiteFrame({
       shortcut: "1",
       run: () => {
         closePalette();
-        router.push("/");
+        navigate("/");
       },
     },
     {
@@ -188,7 +197,7 @@ export function SiteFrame({
         if (path === "/") {
           document.getElementById("lesson")?.scrollIntoView({ behavior: "auto" });
         } else {
-          router.push("/#lesson");
+          navigate("/#lesson");
         }
       },
     },
@@ -199,7 +208,7 @@ export function SiteFrame({
       shortcut: "2",
       run: () => {
         closePalette();
-        router.push("/week-1/");
+        navigate("/week-1/");
       },
     },
     {
@@ -209,7 +218,7 @@ export function SiteFrame({
       shortcut: "3",
       run: () => {
         closePalette();
-        router.push("/chords/");
+        navigate("/chords/");
       },
     },
     {

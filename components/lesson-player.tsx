@@ -1,9 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, HelpCircle } from "lucide-react";
-import type { Lesson, LessonStep } from "../lib/lessons";
+import { course, lessonHref, type Lesson, type LessonStep } from "../lib/lessons";
+import { readReturnLesson } from "../lib/lesson-progress";
+import { useLessonProgress } from "../lib/use-lesson-progress";
 import { useLocalValue } from "../lib/local-value";
 import { CourseArc } from "./course-arc";
 import { HeroStage } from "./hero-stage";
@@ -14,76 +15,79 @@ import {
   TapTrainer,
   Tuner,
 } from "./practice-tools";
-import { Recordings, type Rhythm } from "./recordings";
+import { Recordings } from "./recordings";
+import { maxLineLength } from "../lib/stage-zero";
+import { useStageZeroWriting } from "../lib/use-stage-zero-writing";
+import { RecordingLink as Link, useRecordingNavigation } from "./recording-navigation";
+import { SongWorkbench } from "./song-workbench";
 
-type Progress = { current: string; visited: string[]; finished: boolean };
-
-const emptyProgress: Progress = { current: "", visited: [], finished: false };
-const maxLineLength = 180;
 const maxNotesLength = 320;
-
-function parseProgress(value: unknown): Progress {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("current" in value) ||
-    typeof value.current !== "string" ||
-    !("visited" in value) ||
-    !Array.isArray(value.visited) ||
-    !("finished" in value) ||
-    typeof value.finished !== "boolean"
-  ) {
-    return emptyProgress;
-  }
-  const visited = value.visited.filter((item: unknown) => typeof item === "string");
-  return { current: value.current, visited, finished: value.finished };
-}
-
-function parseLine(value: unknown) {
-  return typeof value === "string" ? value.slice(0, maxLineLength) : "";
-}
 
 function parseNotes(value: unknown) {
   return typeof value === "string" ? value.slice(0, maxNotesLength) : "";
 }
 
-function parseRhythm(value: unknown): Rhythm | null {
-  return value === "rhythm-a" || value === "rhythm-b" ? value : null;
+function getReturnLesson(): { href: string; label: string } | null {
+  try {
+    const saved = readReturnLesson(localStorage, course.slice(1));
+    if (!saved) return null;
+    const { lesson, checkpoint } = saved;
+    const action = checkpoint ? "Review" : "Resume";
+    const stage = lesson.id === "weeks-7-8" ? "Weeks 7–8" : lesson.stage;
+    return { href: `${lessonHref(lesson.id)}#lesson`, label: `${action} ${stage}` };
+  } catch {
+    return null;
+  }
 }
 
 export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: boolean }) {
-  const progress = useLocalValue({
-    key: `lesson:${lesson.id}`,
-    initial: emptyProgress,
-    parse: parseProgress,
-  });
-  const line = useLocalValue({ key: "line", initial: "", parse: parseLine });
+  const progress = useLessonProgress(lesson);
+  const writing = useStageZeroWriting();
   const weekOneNotes = useLocalValue({
     key: "week-1:notes",
     initial: "",
     parse: parseNotes,
   });
-  const rhythm = useLocalValue<Rhythm | null>({
-    key: "rhythm",
-    initial: null,
-    parse: parseRhythm,
-  });
   const [busy, setBusy] = useState(false);
+  const [finalTakeEmpty, setFinalTakeEmpty] = useState(false);
+  const { setRecording } = useRecordingNavigation();
+  const handleRecordingBusy = useCallback((active: boolean) => {
+    setBusy(active);
+    setRecording(active);
+  }, [setRecording]);
+  const [returnLesson, setReturnLesson] = useState<ReturnType<typeof getReturnLesson>>(null);
+
+  useEffect(() => {
+    if (!home) return;
+    const updateReturnLesson = () => setReturnLesson(getReturnLesson());
+    updateReturnLesson();
+    window.addEventListener("pageshow", updateReturnLesson);
+    window.addEventListener("storage", updateReturnLesson);
+    return () => {
+      window.removeEventListener("pageshow", updateReturnLesson);
+      window.removeEventListener("storage", updateReturnLesson);
+    };
+  }, [home]);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const focusNextRef = useRef(false);
 
   const progressValue = progress.value;
-  const index = Math.max(0, lesson.steps.findIndex((s) => s.id === progressValue.current));
+  const finished = progress.checkpointView;
+  const index = finished
+    ? lesson.steps.length - 1
+    : Math.max(0, lesson.steps.findIndex((s) => s.id === progressValue.current));
   const step = lesson.steps[index];
   const next = lesson.steps[index + 1];
-  const finished = progressValue.finished;
+  const nextLesson = course[course.findIndex((item) => item.id === lesson.id) + 1];
   const visited = new Set(
     progressValue.visited.filter((id) => lesson.steps.some((item) => item.id === id))
   );
   const totalMinutes = lesson.steps.reduce((sum, item) => sum + item.minutes, 0);
   const completionRatio = lesson.steps.length > 0 ? visited.size / lesson.steps.length : 0;
-  const warning = progress.warning || line.warning || rhythm.warning || weekOneNotes.warning;
+  const stageZeroTemporary = (home || lesson.id === "week-1") && (writing.lineTemporary || writing.rhythmTemporary);
+  const warning = progress.warning || weekOneNotes.warning ||
+    ((home || lesson.id === "week-1") && writing.unreadable ? "Some saved Stage 0 writing could not be read in this browser." : "");
 
   function scrollToBench() {
     const target = document.getElementById("lesson");
@@ -98,21 +102,22 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
       return;
     }
     focusNextRef.current = true;
-    progress.save({ ...progressValue, current: target.id, finished: false });
+    progress.save(target.id);
   }
 
   function advance() {
     if (!progress.ready || busy) return;
-    visited.add(step.id);
     focusNextRef.current = true;
-    progress.save({
-      current: next?.id ?? step.id,
-      visited: [...visited],
-      finished: !next,
-    });
+    progress.save(next?.id ?? step.id, step.id, !next);
   }
 
-  const ctaLabel = finished
+  function startFromHero() {
+    if (busy) return;
+    if (progress.value.checkpoint) progress.setCheckpointView(true);
+    scrollToBench();
+  }
+
+  const ctaLabel = progress.value.checkpoint
     ? "Review Stage 0"
     : progressValue.current
       ? "Resume Stage 0"
@@ -122,15 +127,19 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
     <div>
       {/* Screen 1 Opening Stage (Home) OR Clean Architectural Header (Week 1) */}
       {home ? (
-        <HeroStage ctaLabel={ctaLabel} onStartSession={scrollToBench} />
+        <HeroStage
+          ctaLabel={returnLesson?.label ?? ctaLabel}
+          ctaHref={returnLesson?.href}
+          onStartSession={startFromHero}
+        />
       ) : (
-        <section className="pt-10 pb-12 sm:pt-14 sm:pb-16" aria-labelledby="week1-heading">
+        <section className="pt-10 pb-12 sm:pt-14 sm:pb-16" aria-labelledby="course-lesson-heading">
           <div className="shell-wrap grid gap-6 lg:grid-cols-12 lg:items-end lg:gap-8">
             <div className="lg:col-span-7">
               <p className="type-meta mb-3">
                 {lesson.stage} · {totalMinutes} minutes · {lesson.steps.length} steps
               </p>
-              <h1 id="week1-heading" className="type-h1 text-[var(--ink)]">
+              <h1 id="course-lesson-heading" className="type-h1 text-[var(--ink)]">
                 {lesson.title}
               </h1>
             </div>
@@ -283,7 +292,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                 <div className="flex items-baseline justify-between gap-4">
                   <span className="font-mono-num text-[13px] text-[var(--accent)]">
                     {finished
-                      ? "Session complete"
+                      ? visited.size === lesson.steps.length ? "Session complete" : "Session checkpoint"
                       : `Step ${index + 1} of ${lesson.steps.length} · ${step.minutes} min`}
                   </span>
                 </div>
@@ -295,6 +304,12 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     if (el && focusNextRef.current) {
                       focusNextRef.current = false;
                       el.focus({ preventScroll: true });
+                      window.requestAnimationFrame(() => {
+                        const bounds = el.getBoundingClientRect();
+                        if (bounds.top < 80 || bounds.bottom > window.innerHeight - 24) {
+                          el.scrollIntoView({ block: "center", behavior: "auto" });
+                        }
+                      });
                     }
                   }}
                   className="type-h2 text-[var(--ink)] outline-none"
@@ -302,7 +317,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   {finished
                     ? home
                       ? "Your first hook checkpoint"
-                      : "Your Week 1 checkpoint"
+                      : `${lesson.stage} checkpoint`
                     : step.title}
                 </h3>
 
@@ -314,17 +329,14 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     {home && (
                       <Recordings
                         mode="hook"
-                        line={line.value}
-                        rhythm={rhythm.value}
-                        onRhythm={rhythm.save}
-                        onBusy={setBusy}
+                        line={writing.firstLine}
+                        rhythm={writing.rhythm}
+                        onRhythm={writing.saveRhythm}
+                        onBusy={handleRecordingBusy}
                       />
                     )}
-                    {!home && weekOneNotes.value.trim() && (
-                      <blockquote className="m-0 border-l-2 border-[var(--lock)] pl-5 text-[22px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                        “{weekOneNotes.value.trim()}”
-                      </blockquote>
-                    )}
+                    {!home && <SongWorkbench lessonId={lesson.id} stepId="checkpoint"
+                      onFinalTakeEmptyChange={lesson.id === "week-6" ? setFinalTakeEmpty : undefined} />}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -343,7 +355,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                             Your concrete line
                           </label>
                           <span className="font-mono-num text-[13px] text-[var(--muted)]">
-                            {line.value.length}/{maxLineLength}
+                            {writing.firstLine.length}/{maxLineLength}
                           </span>
                         </div>
                         <p className="text-[14px] text-[var(--muted)]" id="line-hint">
@@ -354,17 +366,17 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                           aria-describedby="line-hint"
                           rows={3}
                           maxLength={maxLineLength}
-                          disabled={!line.ready}
-                          value={line.value}
-                          onChange={(event) => line.save(event.target.value)}
+                          disabled={!writing.ready}
+                          value={writing.firstLine}
+                          onChange={(event) => writing.saveLine(event.target.value)}
                           placeholder="Write one sentence you would actually say out loud"
                           className="w-full rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-4 text-[16px] text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--ink)] focus:bg-[var(--bg)]"
                         />
-                        {line.value.trim() && (
+                        {writing.firstLine.trim() && (
                           <div className="border-l-2 border-[var(--ink)] pl-4 pt-1">
-                            <p className="text-[13px] text-[var(--muted)]">Saved line</p>
+                            <p className="text-[13px] text-[var(--muted)]">{writing.lineTemporary ? "Line in this tab" : "Saved line"}</p>
                             <p className="mt-1 text-[22px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                              “{line.value.trim()}”
+                              “{writing.firstLine.trim()}”
                             </p>
                           </div>
                         )}
@@ -373,17 +385,17 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
 
                     {(step.kind === "compare" || step.kind === "hook") && (
                       <div className="space-y-5">
-                        {line.value.trim() && (
+                        {writing.firstLine.trim() && (
                           <blockquote className="m-0 border-l-2 border-[var(--accent)] pl-5 text-[22px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                            “{line.value}”
+                            “{writing.firstLine}”
                           </blockquote>
                         )}
                         <Recordings
                           mode={step.kind}
-                          line={line.value}
-                          rhythm={rhythm.value}
-                          onRhythm={rhythm.save}
-                          onBusy={setBusy}
+                          line={writing.firstLine}
+                          rhythm={writing.rhythm}
+                          onRhythm={writing.saveRhythm}
+                          onBusy={handleRecordingBusy}
                         />
                       </div>
                     )}
@@ -396,34 +408,9 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     )}
 
                     {step.kind === "practice" && (
-                      <div className="space-y-4 border-y border-[var(--line)] py-6">
-                        {line.value.trim() && (
-                          <div className="border-b border-[var(--line)] pb-4">
-                            <p className="text-[13px] text-[var(--muted)]">From Stage 0</p>
-                            <p className="mt-1 text-[20px] leading-snug tracking-[-0.02em] text-[var(--ink)]">
-                              “{line.value.trim()}”
-                            </p>
-                          </div>
-                        )}
-                        <div className="flex items-baseline justify-between gap-4">
-                          <label htmlFor="week1-scratch" className="text-[14px] font-medium text-[var(--ink)]">
-                            Working lyric and title notes
-                          </label>
-                          <span className="font-mono-num text-[13px] text-[var(--muted)]">
-                            {weekOneNotes.value.length}/{maxNotesLength}
-                          </span>
-                        </div>
-                        <textarea
-                          id="week1-scratch"
-                          rows={3}
-                          maxLength={maxNotesLength}
-                          disabled={!weekOneNotes.ready}
-                          value={weekOneNotes.value}
-                          onChange={(e) => weekOneNotes.save(e.target.value)}
-                          placeholder="Write four sensory details, pick a title line, or mark the stressed word"
-                          className="w-full rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] p-4 text-[16px] text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--ink)] focus:bg-[var(--bg)]"
-                        />
-                      </div>
+                      <SongWorkbench lessonId={lesson.id} stepId={step.id} firstLine={writing.firstLine}
+                        oldNotes={weekOneNotes.value} onBusy={handleRecordingBusy}
+                        onSaved={() => progress.save(step.id)} />
                     )}
 
                     <PracticeTimer minutes={step.minutes} />
@@ -442,6 +429,14 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   </div>
                 )}
 
+                {stageZeroTemporary && (
+                  <div className="space-y-2">
+                    <p className="text-[13px] text-[var(--accent)]" role="status">
+                      Your Stage 0 changes are only in this tab. Save a ZIP from your songbook before reloading or closing.
+                    </p>
+                    <button type="button" className="btn-secondary" onClick={writing.retry}>Retry saving Stage 0 changes</button>
+                  </div>
+                )}
                 {warning && (
                   <p className="text-[13px] text-[var(--accent)]" role="status">
                     {warning}
@@ -458,21 +453,24 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   className="btn-secondary"
                 >
                   <ArrowLeft size={15} strokeWidth={1.5} aria-hidden="true" />
-                  <span>{finished ? "Review last step" : "Previous step"}</span>
+                  <span>{finished ? (finalTakeEmpty ? "Record your final take" : "Review last step") : "Previous step"}</span>
                 </button>
 
-                {finished ? (
-                  home ? (
-                    <Link href="/week-1/" className="btn-primary">
-                      <span>Continue to Week 1</span>
+                {finished && lesson.id === "week-6" ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <Link href="/songbook/#new-song" className="btn-primary">
+                      <span>Start your next song</span>
                       <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
                     </Link>
-                  ) : (
-                    <Link href="/chords/" className="btn-primary">
-                      <span>Open 10 open chords</span>
-                      <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
+                    <Link href="/weeks-7-8/" className="ui-link inline-flex min-h-11 items-center text-[14px]">
+                      Optional: layers and mix
                     </Link>
-                  )
+                  </div>
+                ) : finished ? (
+                  <Link href={nextLesson ? lessonHref(nextLesson.id) : "/songbook/"} className="btn-primary">
+                    <span>{nextLesson ? `Continue to ${nextLesson.stage}` : "Open your songbook"}</span>
+                    <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
+                  </Link>
                 ) : (
                   <button
                     type="button"
@@ -481,7 +479,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                     className="btn-primary"
                   >
                     <span>
-                      {next ? "Next step" : home ? "Finish Stage 0" : "Finish Week 1"}
+                      {next ? "Next step" : `Finish ${lesson.stage}`}
                     </span>
                     <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
                   </button>
@@ -499,13 +497,13 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
         <section className="mt-20 border-t border-[var(--line)] pt-12">
           <div className="shell-wrap flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-2">
-              <p className="type-meta">Next reference</p>
+              <p className="type-meta">Your recordings and lyrics</p>
               <h2 className="type-h3 text-[var(--ink)]">
-                Try moving from Em to Asus2, C, G, and D
+                Return to the song you’re making
               </h2>
             </div>
-            <Link href="/chords/" className="btn-secondary w-full sm:w-auto">
-              <span>Open 10 open chords</span>
+            <Link href="/songbook/" className="btn-secondary w-full sm:w-auto">
+              <span>Open your songbook</span>
               <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
             </Link>
           </div>

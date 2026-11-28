@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, Mic, Square } from "lucide-react";
-import { useLocalValue } from "../lib/local-value";
+import { Check, ChevronDown, Mic, Square } from "lucide-react";
+import { type Rhythm } from "../lib/stage-zero";
 import { ticker } from "../lib/ticker";
+import { audioExtension, hasRecordingInput, interruptedTakeMessage, subscribeToPageReturn } from "../lib/studio-audio";
 
-type TakeId = "rhythm-a" | "rhythm-b" | "hook";
-export type Rhythm = Exclude<TakeId, "hook">;
-
-type Take = { audio: string; seconds: number; caption: string };
+import { legacyTakeKey, legacyTakes, MAX_CAPTION_LENGTH, parseLegacyTake, readLegacyTake, subscribeToLegacyTakeChanges, writeLegacyTake, type LegacyTake, type LegacyTakeId as TakeId } from "../lib/legacy-takes";
 
 type RecorderState =
   | { kind: "idle" }
@@ -16,7 +14,6 @@ type RecorderState =
   | { kind: "recording"; take: TakeId; started: number };
 
 const MAX_SECONDS = 20;
-const MAX_CAPTION_LENGTH = 240;
 const METER_BARS = 24;
 const CLEAR_STATE: RecorderState = { kind: "idle" };
 
@@ -25,33 +22,6 @@ const defaultCaptions: Record<TakeId, string> = {
   "rhythm-b": "Hummed melody with a pause before the key word.",
   hook: "An E minor chord and the first hook.",
 };
-
-function parseTake(value: unknown): Take | null {
-  if (typeof value !== "object" || value === null) return null;
-  if (
-    !("audio" in value) ||
-    typeof value.audio !== "string" ||
-    !/^data:audio\/(?:webm|mp4|ogg|aac|wav|x-wav|mpeg)(?:;[\w=,.+-]+)*;base64,[a-z\d+/]+=*$/i.test(
-      value.audio
-    )
-  ) {
-    return null;
-  }
-  if (
-    !("seconds" in value) ||
-    typeof value.seconds !== "number" ||
-    !Number.isFinite(value.seconds) ||
-    value.seconds < 0
-  ) {
-    return null;
-  }
-  if (!("caption" in value) || typeof value.caption !== "string") return null;
-  return {
-    audio: value.audio,
-    seconds: value.seconds,
-    caption: value.caption.slice(0, MAX_CAPTION_LENGTH),
-  };
-}
 
 function readAudio(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
@@ -63,6 +33,66 @@ function readAudio(blob: Blob) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
+}
+
+function useLegacyTake(id: TakeId) {
+  const [state, setState] = useState<{ value: LegacyTake | null; temporary: boolean; ready: boolean; warning: string }>({
+    value: null, temporary: false, ready: false, warning: "",
+  });
+  useEffect(() => {
+    function refresh() {
+      try {
+        setState({ ...readLegacyTake(id), ready: true, warning: "" });
+      } catch {
+        setState((prior) => ({ ...prior, ready: true, warning: "This saved take could not be read in this browser." }));
+      }
+    }
+    const stopWatching = subscribeToLegacyTakeChanges((changed) => { if (changed === id) refresh(); });
+    const stopPageReturn = subscribeToPageReturn(refresh);
+    function sync(event: StorageEvent) {
+      if (event.storageArea === localStorage && (event.key === null || event.key === legacyTakeKey(id))) refresh();
+    }
+    window.addEventListener("storage", sync);
+    refresh();
+    return () => {
+      stopWatching();
+      stopPageReturn();
+      window.removeEventListener("storage", sync);
+    };
+  }, [id]);
+  return { ...state, save: (take: LegacyTake) => writeLegacyTake(id, take) };
+}
+
+const temporaryMessage = "This take is only available in this tab. Download it before reloading or closing.";
+
+function LegacyTakeDownload({ id, take }: { id: TakeId; take: LegacyTake }) {
+  const type = take.audio.slice(5, take.audio.indexOf(";"));
+  return <a className="ui-link min-h-11 text-[14px]" href={take.audio}
+    download={`firstsong-${id}.${audioExtension(type)}`}>Download take</a>;
+}
+
+export function FirstHookCue() {
+  const { value: take, temporary } = useLegacyTake("hook");
+  const playback = useRef<HTMLAudioElement>(null);
+  if (!take) return null;
+  return (
+    <details className="ledger-disclosure group border-y border-[var(--line)]" onToggle={(event) => {
+      if (!event.currentTarget.open) playback.current?.pause();
+    }}>
+      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 py-2 text-[14px] font-medium text-[var(--ink)]">
+        Listen to your first hook
+        <ChevronDown size={16} aria-hidden="true" className="shrink-0 text-[var(--muted)] group-open:rotate-180" />
+      </summary>
+      <div className="space-y-2 pb-3">
+        <p className="text-[13px] text-[var(--muted)]">Play your Stage 0 take, then try your title line again.</p>
+        <audio ref={playback} className="studio-audio w-full" controls preload="metadata" src={take.audio} aria-label="Stage 0 hook reference" />
+        {temporary && <>
+          <LegacyTakeDownload id="hook" take={take} />
+          <p className="text-[13px] text-[var(--ink-soft)]" role="status">{temporaryMessage}</p>
+        </>}
+      </div>
+    </details>
+  );
 }
 
 export function Recordings({
@@ -78,9 +108,9 @@ export function Recordings({
   onRhythm: (rhythm: Rhythm) => void;
   onBusy: (busy: boolean) => void;
 }) {
-  const takeA = useLocalValue<Take | null>({ key: "take:rhythm-a", initial: null, parse: parseTake });
-  const takeB = useLocalValue<Take | null>({ key: "take:rhythm-b", initial: null, parse: parseTake });
-  const hook = useLocalValue<Take | null>({ key: "take:hook", initial: null, parse: parseTake });
+  const takeA = useLegacyTake("rhythm-a");
+  const takeB = useLegacyTake("rhythm-b");
+  const hook = useLegacyTake("hook");
   const takes = { "rhythm-a": takeA, "rhythm-b": takeB, hook };
 
   const [state, setState] = useState<RecorderState>(CLEAR_STATE);
@@ -99,6 +129,7 @@ export function Recordings({
   const stopAt = useRef(0);
   const operation = useRef(0);
   const recordingLocked = useRef(false);
+  const saveRequested = useRef(false);
   const group = useRef<HTMLDivElement>(null);
 
   function stopMeter() {
@@ -149,8 +180,20 @@ export function Recordings({
     onBusy(false);
   }
 
+  function interrupt() {
+    operation.current++;
+    if (recorder.current?.state === "recording") recorder.current.stop();
+    releaseMic();
+    finish(interruptedTakeMessage);
+  }
+
   function stop(id: TakeId) {
     if (recorder.current?.state === "recording") {
+      if (!hasRecordingInput(stream.current)) {
+        interrupt();
+        return;
+      }
+      saveRequested.current = true;
       setState({ kind: "saving", take: id });
       recorder.current.stop();
       stream.current?.getTracks().forEach((track) => track.stop());
@@ -193,6 +236,7 @@ export function Recordings({
     }
 
     recordingLocked.current = true;
+    saveRequested.current = false;
     onBusy(true);
     const request = ++operation.current;
     setMessage("");
@@ -207,6 +251,10 @@ export function Recordings({
         return;
       }
       stream.current = input;
+      if (!hasRecordingInput(input)) {
+        interrupt();
+        return;
+      }
       const mimeType = [
         "audio/webm;codecs=opus",
         "audio/mp4",
@@ -215,6 +263,9 @@ export function Recordings({
 
       const recording = new MediaRecorder(input, { mimeType, audioBitsPerSecond: 32_000 });
       recorder.current = recording;
+      input.getAudioTracks().forEach((track) => track.addEventListener("mute", () => {
+        if (request === operation.current && !saveRequested.current && recording.state === "recording") interrupt();
+      }, { once: true }));
       const chunks: Blob[] = [];
       const started = performance.now();
       let failed = false;
@@ -232,7 +283,10 @@ export function Recordings({
       recording.onstop = async () => {
         if (request !== operation.current || failed) return;
         releaseMic();
-        setState({ kind: "saving", take: id });
+        if (!saveRequested.current) {
+          finish(interruptedTakeMessage);
+          return;
+        }
         const blob = new Blob(chunks, { type: recording.mimeType || chunks[0]?.type });
         try {
           if (!blob.size) throw new Error("No audio was captured.");
@@ -240,14 +294,16 @@ export function Recordings({
           if (request !== operation.current) return;
           const caption =
             id === "hook" && line.trim() ? `[Em chord] ${line.trim()}` : defaultCaptions[id];
-          const take = parseTake({
+          const take = parseLegacyTake({
             audio,
             seconds: (performance.now() - started) / 1000,
             caption,
           });
           if (!take) throw new Error("Unsupported recording format.");
-          takes[id].save(take);
-          finish("Take saved in this browser and ready to play back.");
+          const saved = takes[id].save(take);
+          finish(saved
+            ? "Take saved in this browser and ready to play back."
+            : "Recording finished.");
         } catch {
           if (request === operation.current) finish("The take could not be read. Try recording again.");
         }
@@ -255,7 +311,9 @@ export function Recordings({
 
       recording.start();
       setState({ kind: "recording", take: id, started });
-      window.requestAnimationFrame(() => startMeter(input, id));
+      window.requestAnimationFrame(() => {
+        if (request === operation.current && stream.current === input) startMeter(input, id);
+      });
       stopAt.current = window.setTimeout(() => stop(id), MAX_SECONDS * 1000);
     } catch (error) {
       if (request !== operation.current) return;
@@ -304,6 +362,7 @@ export function Recordings({
               take={takes[id].value}
               ready={takes[id].ready}
               warning={takes[id].warning}
+              temporary={takes[id].temporary}
               state={state}
               elapsed={elapsed}
               preferred={rhythm === id}
@@ -331,6 +390,7 @@ function TakeSlot({
   take,
   ready,
   warning,
+  temporary,
   state,
   elapsed,
   preferred,
@@ -341,15 +401,16 @@ function TakeSlot({
   registerBar,
 }: {
   id: TakeId;
-  take: Take | null;
+  take: LegacyTake | null;
   ready: boolean;
   warning: string;
+  temporary: boolean;
   state: RecorderState;
   elapsed: number;
   preferred: boolean;
   onStart: () => void;
   onStop: () => void;
-  onSave: (take: Take) => void;
+  onSave: (take: LegacyTake) => void;
   onChoose: (rhythm: Rhythm) => void;
   registerBar: (index: number, el: HTMLSpanElement | null) => void;
 }) {
@@ -417,6 +478,10 @@ function TakeSlot({
             <p className="text-[13px] text-[var(--ink-soft)]" id={captionId}>
               {take.caption || defaultCaptions[id]}
             </p>
+            {temporary && <>
+              <LegacyTakeDownload id={id} take={take} />
+              <p className="text-[13px] text-[var(--ink-soft)]" role="status">{temporaryMessage}</p>
+            </>}
             <details className="text-[13px] text-[var(--muted)]">
               <summary className="cursor-pointer font-medium hover:text-[var(--ink)]">
                 Edit caption
@@ -482,5 +547,31 @@ function TakeSlot({
         </p>
       )}
     </div>
+  );
+}
+
+export function LegacyTakeShelf() {
+  const takeA = useLegacyTake("rhythm-a");
+  const takeB = useLegacyTake("rhythm-b");
+  const hook = useLegacyTake("hook");
+  const takes = { "rhythm-a": takeA, "rhythm-b": takeB, hook };
+  const saved = legacyTakes.map(({ id, label }) => ({ key: id, title: label, take: takes[id].value, temporary: takes[id].temporary })).filter(({ take }) => take !== null);
+  if (!saved.length) return null;
+
+  return (
+    <section aria-labelledby="legacy-takes" className="space-y-4 border-t border-[var(--line)] pt-5">
+      <h2 id="legacy-takes" className="text-[16px] font-medium">From your first session</h2>
+      {saved.map(({ key, title, take, temporary }) => {
+        if (!take) return null;
+        return (
+          <div key={key} className="space-y-2">
+            <h3 className="text-[14px]">{title}</h3>
+            <audio className="studio-audio w-full" controls preload="metadata" src={take.audio} aria-label={`${title} playback`} />
+            <LegacyTakeDownload id={key} take={take} />
+            {temporary && <p className="text-[13px] text-[var(--ink-soft)]" role="status">{temporaryMessage}</p>}
+          </div>
+        );
+      })}
+    </section>
   );
 }

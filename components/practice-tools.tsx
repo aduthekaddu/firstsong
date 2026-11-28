@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Clock, Mic, MicOff, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
 import { em, guitarStrings } from "../lib/chords";
-import { detectGuitarPitch } from "../lib/pitch";
+import { detectGuitarPitch, guitarAnalyserWindow, tuningFeedback } from "../lib/pitch";
 import { openAudio, pluckString, scheduleMetronomeClick } from "../lib/sound";
 import { ticker } from "../lib/ticker";
 import { ChordDiagram } from "./chord-diagram";
+
+// Let the analyser window and any short speaker tail clear before accepting pitch again.
+const referenceSettleMs = 180;
+const listenThenPluck = "Listen to the reference, then pluck your selected open string.";
 
 /**
  * Studio Tuner:
@@ -19,9 +23,12 @@ export function Tuner() {
   const audioRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const requestRef = useRef(0);
+  const referenceBusyRef = useRef(false);
+  const referenceQuietAtRef = useRef(0);
 
   // Live mic tuner refs (mutated imperatively at 60fps, zero React re-renders)
   const micStreamRef = useRef<MediaStream | null>(null);
+  const micRequestRef = useRef<symbol | null>(null);
   const micCtxRef = useRef<AudioContext | null>(null);
   const micUnsubRef = useRef<(() => void) | null>(null);
   const needleRef = useRef<HTMLDivElement | null>(null);
@@ -30,24 +37,64 @@ export function Tuner() {
   const strobeCentsRef = useRef<HTMLSpanElement | null>(null);
   const strobeGuideRef = useRef<HTMLSpanElement | null>(null);
   const strobeTrackRef = useRef<HTMLDivElement | null>(null);
+  const targetIndexRef = useRef(0);
 
   const [playing, setPlaying] = useState("");
   const [heard, setHeard] = useState<string[]>([]);
+  const [targetIndex, setTargetIndex] = useState(0);
   const [micActive, setMicActive] = useState(false);
+  const [micPending, setMicPending] = useState(false);
   const [micError, setMicError] = useState("");
   const [message, setMessage] = useState("");
 
-  function stopMic() {
+  function releaseMic() {
+    micRequestRef.current = null;
     if (micUnsubRef.current) {
       micUnsubRef.current();
       micUnsubRef.current = null;
     }
     micStreamRef.current?.getTracks().forEach((t) => t.stop());
     micStreamRef.current = null;
-    if (micCtxRef.current) {
-      void micCtxRef.current.close();
-      micCtxRef.current = null;
+    const ctx = micCtxRef.current;
+    micCtxRef.current = null;
+    if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
+  }
+
+  function referenceBlocksPitch() {
+    return referenceBusyRef.current || performance.now() < referenceQuietAtRef.current;
+  }
+
+  function clearReading(waitForReference = referenceBlocksPitch()) {
+    if (strobeNoteRef.current) {
+      strobeNoteRef.current.textContent = guitarStrings[targetIndexRef.current].name;
+      strobeNoteRef.current.style.color = "var(--ink)";
     }
+    if (strobeHzRef.current) strobeHzRef.current.textContent = "– Hz";
+    if (strobeCentsRef.current) {
+      strobeCentsRef.current.textContent = "–¢";
+      strobeCentsRef.current.style.color = "var(--ink-soft)";
+    }
+    if (strobeGuideRef.current) {
+      strobeGuideRef.current.textContent = waitForReference
+        ? listenThenPluck : "Pluck the selected open string near the mic.";
+      strobeGuideRef.current.style.color = "var(--muted)";
+    }
+    if (needleRef.current) {
+      needleRef.current.style.transform = "translate3d(0px, 0, 0)";
+      needleRef.current.style.opacity = "0.35";
+      needleRef.current.style.backgroundColor = "var(--accent)";
+    }
+  }
+
+  function selectTarget(index: number) {
+    targetIndexRef.current = index;
+    setTargetIndex(index);
+    clearReading();
+  }
+
+  function stopMic() {
+    releaseMic();
+    setMicPending(false);
     setMicActive(false);
     if (needleRef.current) {
       needleRef.current.style.transform = "translate3d(0px, 0, 0)";
@@ -55,20 +102,27 @@ export function Tuner() {
     }
   }
 
+  function stopReferenceSource() {
+    const source = activeSourceRef.current;
+    activeSourceRef.current = null;
+    try {
+      source?.stop();
+    } catch {
+      // Already ended.
+    }
+  }
+
   useEffect(() => {
     return () => {
       requestRef.current++;
-      stopMic();
-      try {
-        activeSourceRef.current?.stop();
-      } catch {
-        // Already ended
-      }
+      releaseMic();
+      stopReferenceSource();
     };
   }, []);
 
   async function toggleMic() {
-    if (micActive) {
+    if (micRequestRef.current) return;
+    if (micStreamRef.current) {
       stopMic();
       setMessage("Microphone tuner paused.");
       return;
@@ -79,6 +133,10 @@ export function Tuner() {
       return;
     }
 
+    const request = Symbol();
+    micRequestRef.current = request;
+    setMicPending(true);
+    setMessage("");
     setMicError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -88,32 +146,56 @@ export function Tuner() {
           autoGainControl: false,
         },
       });
+      if (micRequestRef.current !== request) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      // Register resources before setup so errors can release partial work.
+      micStreamRef.current = stream;
       const ctx = new AudioContext();
+      micCtxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = guitarAnalyserWindow(ctx.sampleRate);
       source.connect(analyser);
 
-      micStreamRef.current = stream;
-      micCtxRef.current = ctx;
       setMicActive(true);
       setMessage("Listening to your guitar. Pluck one open string at a time.");
 
       const timeBuf = new Float32Array(analyser.fftSize);
       const diffScratch = new Float32Array(analyser.fftSize >> 1);
-      let smoothedCents = 0;
+      let history: ReturnType<typeof tuningFeedback> | null = null;
+      let lastTarget = -1;
       let holdFrames = 0;
+      let referencePaused = false;
 
       micUnsubRef.current = ticker.subscribe(() => {
+        if (referenceBlocksPitch()) {
+          if (!referencePaused) clearReading(true);
+          referencePaused = true;
+          history = null;
+          holdFrames = 0;
+          return;
+        }
+        if (referencePaused) {
+          referencePaused = false;
+          clearReading(false);
+        }
+        const index = targetIndexRef.current;
+        if (lastTarget !== index) {
+          history = null;
+          holdFrames = 0;
+          lastTarget = index;
+        }
         analyser.getFloatTimeDomainData(timeBuf);
         const reading = detectGuitarPitch(timeBuf, ctx.sampleRate, diffScratch);
 
         if (reading) {
-          holdFrames = 24;
-          const clampedCents = Math.max(-50, Math.min(50, reading.nearestStringCents));
-          smoothedCents = smoothedCents * 0.72 + clampedCents * 0.28;
-          const inTune = Math.abs(smoothedCents) <= 4.5;
-          const target = guitarStrings[reading.nearestStringIndex];
+          holdFrames = 12;
+          const target = guitarStrings[index];
+          history = tuningFeedback(reading.hz, target.hz, history);
+          const { smoothedCents, status } = history;
+          const inTune = status === "locked";
 
           if (strobeNoteRef.current) {
             strobeNoteRef.current.textContent = target.name;
@@ -128,52 +210,66 @@ export function Tuner() {
             strobeCentsRef.current.style.color = inTune ? "var(--lock)" : "var(--ink-soft)";
           }
           if (strobeGuideRef.current) {
-            strobeGuideRef.current.textContent = inTune
-              ? `${target.label} is in tune`
-              : smoothedCents < 0
-                ? `${target.label} is flat · tighten peg slowly`
-                : `${target.label} is sharp · loosen peg slowly`;
+            switch (status) {
+              case "locked": strobeGuideRef.current.textContent = `${target.label} is in tune`; break;
+              case "checking": strobeGuideRef.current.textContent = "Checking pitch…"; break;
+              case "flat": strobeGuideRef.current.textContent = `${target.label} is flat · tighten peg slowly`; break;
+              case "sharp": strobeGuideRef.current.textContent = `${target.label} is sharp · loosen peg slowly`; break;
+              case "check-string":
+                strobeGuideRef.current.textContent = "Far from the target. Check the string and listen to its reference before turning the peg.";
+                break;
+            }
             strobeGuideRef.current.style.color = inTune ? "var(--lock)" : "var(--muted)";
           }
 
           if (needleRef.current && strobeTrackRef.current) {
             const halfW = (strobeTrackRef.current.clientWidth - 4) / 2;
-            const offsetPx = (smoothedCents / 50) * halfW;
+            const offsetPx = (Math.max(-50, Math.min(50, smoothedCents)) / 50) * halfW;
             needleRef.current.style.transform = `translate3d(${offsetPx.toFixed(1)}px, 0, 0)`;
             needleRef.current.style.opacity = "1";
             needleRef.current.style.backgroundColor = inTune ? "var(--lock)" : "var(--accent)";
           }
-        } else if (holdFrames > 0) {
-          holdFrames--;
-          if (holdFrames === 0 && needleRef.current) {
-            needleRef.current.style.opacity = "0.35";
-          }
+        } else {
+          history = null;
+          if (holdFrames > 0 && --holdFrames === 0) clearReading();
         }
       });
     } catch (error) {
+      if (micRequestRef.current !== request) return;
       stopMic();
       setMicError(
         error instanceof DOMException && error.name === "NotAllowedError"
           ? "Microphone access was declined. Tune by ear with the six reference strings below."
           : "Microphone could not start. Tune by ear with the six reference strings below."
       );
+    } finally {
+      if (micRequestRef.current === request) {
+        micRequestRef.current = null;
+        setMicPending(false);
+      }
     }
   }
 
   async function playReference(note: (typeof guitarStrings)[number], index: number) {
     const id = ++requestRef.current;
+    referenceBusyRef.current = true;
+    stopReferenceSource();
     setPlaying(note.name);
-    setHeard((prev) => (prev.includes(note.name) ? prev : [...prev, note.name]));
+    if (micStreamRef.current) clearReading(true);
+
+    const finish = () => {
+      // An old source's ended event cannot lift a newer note's pause.
+      if (id !== requestRef.current) return;
+      activeSourceRef.current = null;
+      referenceBusyRef.current = false;
+      referenceQuietAtRef.current = performance.now() + referenceSettleMs;
+      setPlaying("");
+    };
 
     try {
       const ctx = await openAudio(audioRef.current);
       if (id !== requestRef.current) return;
       audioRef.current = ctx;
-      try {
-        activeSourceRef.current?.stop();
-      } catch {
-        // Already stopped
-      }
       const source = pluckString({
         context: ctx,
         hz: note.hz,
@@ -182,17 +278,13 @@ export function Tuner() {
         brightness: index < 3 ? 0.48 : 0.64,
       });
       activeSourceRef.current = source;
+      source.onended = finish;
+      setHeard((prev) => (prev.includes(note.name) ? prev : [...prev, note.name]));
       setMessage(`Reference pitch: ${note.label} (${note.name}, ${note.hz.toFixed(2)} Hz)`);
-      source.onended = () => {
-        if (id === requestRef.current) {
-          activeSourceRef.current = null;
-          setPlaying("");
-        }
-      };
     } catch {
-      if (id === requestRef.current) {
-        setMessage("Your browser could not play audio.");
-      }
+      if (id !== requestRef.current) return;
+      finish();
+      setMessage("Your browser could not play audio.");
     }
   }
 
@@ -208,7 +300,7 @@ export function Tuner() {
             <p className="text-[13px] text-[var(--muted)]">
               <span ref={strobeGuideRef}>
                 {micActive
-                  ? "Pluck one open string clearly near your mic"
+                  ? "Pluck the selected open string near the mic."
                   : "Optional pitch needle, or tune directly by ear below"}
               </span>
             </p>
@@ -217,6 +309,7 @@ export function Tuner() {
           <button
             type="button"
             onClick={() => void toggleMic()}
+            disabled={micPending}
             className={micActive ? "btn-primary" : "btn-secondary"}
             data-tone={micActive ? "accent" : undefined}
           >
@@ -225,23 +318,32 @@ export function Tuner() {
             ) : (
               <Mic size={15} strokeWidth={1.5} aria-hidden="true" />
             )}
-            <span>{micActive ? "Stop mic tuner" : "Listen with mic"}</span>
+            <span>{micActive ? "Stop mic tuner" : micPending ? "Waiting for microphone…" : "Listen with mic"}</span>
           </button>
         </div>
 
         {micActive && (
           <div className="mt-5 space-y-3">
+            <label className="flex flex-wrap items-center gap-2 text-[14px] text-[var(--ink-soft)]">
+              Target string
+              <select value={targetIndex} onChange={(event) => selectTarget(Number(event.target.value))}
+                className="min-h-11 rounded-[var(--r-sm)] border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-[var(--ink)]">
+                {guitarStrings.map(({ name, label }, index) => (
+                  <option key={name} value={index}>{6 - index} · {label} ({name})</option>
+                ))}
+              </select>
+            </label>
             <div className="flex items-baseline justify-between gap-4">
               <span
                 ref={strobeNoteRef}
                 className="font-mono-num text-[32px] leading-none font-medium tracking-[-0.03em] text-[var(--ink)]"
               >
-                --
+                {guitarStrings[targetIndex].name}
               </span>
               <div className="font-mono-num flex items-baseline gap-4 text-[14px] text-[var(--muted)]">
-                <span ref={strobeHzRef}>0.0 Hz</span>
+                <span ref={strobeHzRef}>– Hz</span>
                 <span ref={strobeCentsRef} className="min-w-[44px] text-right text-[var(--ink-soft)]">
-                  0¢
+                  –¢
                 </span>
               </div>
             </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { RecordingLink as Link } from "./recording-navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ArrowDown, ArrowRight } from "lucide-react";
@@ -19,9 +19,11 @@ function fingeringSummary(chord: Chord): string {
 
 export function HeroStage({
   ctaLabel,
+  ctaHref,
   onStartSession,
 }: {
   ctaLabel: string;
+  ctaHref?: string;
   onStartSession: () => void;
 }) {
   const [chordIndex, setChordIndex] = useState(0);
@@ -153,14 +155,17 @@ export function HeroStage({
             </p>
 
             <div data-hero-fade className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={onStartSession}
-                className="btn-primary w-full sm:w-auto"
-              >
-                <span>{ctaLabel}</span>
-                <ArrowDown size={15} strokeWidth={1.5} aria-hidden="true" />
-              </button>
+              {ctaHref ? (
+                <Link href={ctaHref} className="btn-primary w-full sm:w-auto">
+                  <span>{ctaLabel}</span>
+                  <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
+                </Link>
+              ) : (
+                <button type="button" onClick={onStartSession} className="btn-primary w-full sm:w-auto">
+                  <span>{ctaLabel}</span>
+                  <ArrowDown size={15} strokeWidth={1.5} aria-hidden="true" />
+                </button>
+              )}
 
               <Link href="/chords/" className="btn-secondary w-full sm:w-auto">
                 <span>Open 10 chords</span>

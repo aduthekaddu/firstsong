@@ -83,7 +83,7 @@ export function ChordDiagram({
   const description = describeChord(chord);
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div role="group" aria-label={`${chord.fullName} chord controls`} className="flex flex-col items-center gap-3">
       <div className="relative">
         <svg
           width={width}
@@ -185,24 +185,23 @@ export function ChordDiagram({
                   {idx === 5 ? "e" : guitarStrings[idx].name.replace(/\d/, "")}
                 </text>
 
-                {/* Invisible clickable column hit target for plucking individual strings */}
-                {!muted && (
-                  <rect
-                    x={x - gridW / 10}
-                    y={padTop - 22}
-                    width={gridW / 5}
-                    height={gridH + 26}
-                    fill="transparent"
-                    className="cursor-pointer"
-                    onClick={() => void handlePluck(idx)}
-                  />
-                )}
               </g>
             );
           })}
         </svg>
 
-        <p className="sr-only">{description}</p>
+        {/* Native controls are siblings of the SVG, not descendants of its image role. */}
+        {chord.strings.map((pos, idx) => pos !== "x" && (
+          <button
+            key={guitarStrings[idx].name}
+            type="button"
+            aria-label={`Play ${guitarStrings[idx].label}, ${pos === 0 ? "open" : `fret ${pos[0]}`}`}
+            data-playing={activeString === idx ? "true" : undefined}
+            onClick={() => void handlePluck(idx)}
+            className="absolute z-[1] cursor-pointer rounded-sm border-0 bg-transparent focus-visible:outline-offset-[-2px]"
+            style={{ left: stringX(idx) - gridW / 10, top: padTop - 22, width: gridW / 5, height: gridH + 26 }}
+          />
+        ))}
       </div>
 
       {showStrum && (
