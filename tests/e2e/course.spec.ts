@@ -966,3 +966,82 @@ for (const occupied of [false, true]) {
     expect(await audioBytes()).toEqual(committed);
   });
 }
+
+test("a Stage 0 hook with a refused write can still be played and exported in the same tab", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("./#lesson");
+  await goStep(page, "Record your hook");
+
+  const recordHook = async (again = false, elapsed = 1) => {
+    await page.getByRole("button", { name: again ? "Record Your hook again" : "Record Your hook", exact: true }).click();
+    await page.getByRole("button", { name: `Stop recording (${elapsed}s)`, exact: true }).click();
+  };
+  const player = page.getByLabel("Your hook playback");
+  const warning = page.getByText("This take is only available in this tab. Download it before reloading or closing.", { exact: true });
+  const audioBytes = (locator: typeof player) => locator.evaluate(async (audio: HTMLAudioElement) =>
+    Array.from(new Uint8Array(await (await fetch(audio.src)).arrayBuffer())));
+
+  await recordHook();
+  await expect(page.getByText("Take saved in this browser and ready to play back.")).toBeVisible();
+  await expect(player).toHaveAttribute("src", /^data:audio\//);
+  const original = await audioBytes(player);
+  await page.evaluate(() => {
+    const setItem = Storage.prototype.setItem;
+    document.documentElement.dataset.rejectStageZeroHook = "true";
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "firstsong:v1:take:hook" && document.documentElement.dataset.rejectStageZeroHook === "true") {
+        throw new DOMException("Simulated quota exceeded", "QuotaExceededError");
+      }
+      setItem.call(this, key, value);
+    };
+  });
+
+  await recordHook(true, 2);
+  await expect(warning).toBeVisible();
+  const temporary = await audioBytes(player);
+  expect(temporary).not.toEqual(original);
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Download take", exact: true }).click();
+  expect(await readFile((await (await download).path())!)).toEqual(Buffer.from(temporary));
+
+  const other = await context.newPage();
+  await other.goto("songbook/");
+  const otherHook = other.getByLabel("Stage 0 hook playback");
+  await expect(otherHook).toHaveAttribute("src", /^data:audio\//);
+  expect(await audioBytes(otherHook)).toEqual(original);
+  await expect(other.getByText("This take is only available in this tab.", { exact: false })).toHaveCount(0);
+  await other.close();
+
+  await page.getByRole("button", { name: "Finish Stage 0" }).click();
+  await expect(warning).toBeVisible();
+  expect(await audioBytes(player)).toEqual(temporary);
+  await page.getByRole("link", { name: "Continue to Week 1" }).click();
+  await goStep(page, "Try two or three notes");
+  await page.getByText("Listen to your first hook", { exact: true }).click();
+  const reference = page.getByLabel("Stage 0 hook reference");
+  await expect(reference).toBeVisible();
+  expect(await audioBytes(reference)).toEqual(temporary);
+  await page.getByRole("link", { name: "Open your songbook", exact: true }).click();
+  const shelf = page.getByLabel("Stage 0 hook playback");
+  await expect(shelf).toHaveAttribute("src", /^data:audio\//);
+  expect(await audioBytes(shelf)).toEqual(temporary);
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save ZIP", exact: true }).press("Enter");
+  const files = unzipSync(await readFile((await (await pending).path())!));
+  const track = Object.keys(files).find((name) => name.startsWith("takes/stage-0-hook."));
+  expect(track).toBeDefined();
+  expect(Buffer.from(files[track!])).toEqual(Buffer.from(temporary));
+
+  await page.getByRole("link", { name: "Firstsong", exact: true }).click();
+  await expect(warning).toBeVisible();
+  await page.evaluate(() => delete document.documentElement.dataset.rejectStageZeroHook);
+  await recordHook(true);
+  await expect(page.getByText("Take saved in this browser and ready to play back.")).toBeVisible();
+  await expect(warning).toHaveCount(0);
+  const committed = await audioBytes(player);
+  await page.reload();
+  await expect(player).toHaveAttribute("src", /^data:audio\//);
+  expect(await audioBytes(player)).toEqual(committed);
+});

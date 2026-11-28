@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { songFileStem } from "../lib/export-names";
 import { Download } from "lucide-react";
+import { subscribeToLegacyTakeChanges } from "../lib/legacy-takes";
 import type { BackupOmission } from "../lib/song-backup";
 import { studioTakes, type SongProject } from "../lib/song-project";
 import { stageZeroWritingKeys } from "../lib/stage-zero";
@@ -29,11 +30,13 @@ export function SongBackup({ song, ready, recording, projectId, notesUnreadable 
       if (!projectId && event.storageArea === localStorage && (event.key === null || event.key.startsWith("firstsong:v1:take:") || stageZeroWritingKeys.includes(event.key))) invalidate();
     }
     const stopWatching = subscribeToTakeChanges((id) => { if (relevant.has(id)) invalidate(); });
+    const stopLegacy = !projectId ? subscribeToLegacyTakeChanges(invalidate) : undefined;
     const stopPageReturn = subscribeToPageReturn(invalidate);
     window.addEventListener("storage", legacyChanged);
     return () => {
       revision.current++;
       stopWatching();
+      stopLegacy?.();
       stopPageReturn();
       window.removeEventListener("storage", legacyChanged);
     };

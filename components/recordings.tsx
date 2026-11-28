@@ -3,14 +3,10 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown, Mic, Square } from "lucide-react";
 import { type Rhythm } from "../lib/stage-zero";
-import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
-import { audioExtension, hasRecordingInput, interruptedTakeMessage } from "../lib/studio-audio";
+import { audioExtension, hasRecordingInput, interruptedTakeMessage, subscribeToPageReturn } from "../lib/studio-audio";
 
-import { legacyTakes, MAX_CAPTION_LENGTH, parseLegacyTake, type LegacyTake } from "../lib/legacy-takes";
-
-type TakeId = Rhythm | "hook";
-
+import { legacyTakeKey, legacyTakes, MAX_CAPTION_LENGTH, parseLegacyTake, readLegacyTake, subscribeToLegacyTakeChanges, writeLegacyTake, type LegacyTake, type LegacyTakeId as TakeId } from "../lib/legacy-takes";
 
 type RecorderState =
   | { kind: "idle" }
@@ -39,12 +35,44 @@ function readAudio(blob: Blob) {
   });
 }
 
-function useStageZeroHook(syncAcrossTabs = false) {
-  return useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake, syncAcrossTabs });
+function useLegacyTake(id: TakeId) {
+  const [state, setState] = useState<{ value: LegacyTake | null; temporary: boolean; ready: boolean; warning: string }>({
+    value: null, temporary: false, ready: false, warning: "",
+  });
+  useEffect(() => {
+    function refresh() {
+      try {
+        setState({ ...readLegacyTake(id), ready: true, warning: "" });
+      } catch {
+        setState((prior) => ({ ...prior, ready: true, warning: "This saved take could not be read in this browser." }));
+      }
+    }
+    const stopWatching = subscribeToLegacyTakeChanges((changed) => { if (changed === id) refresh(); });
+    const stopPageReturn = subscribeToPageReturn(refresh);
+    function sync(event: StorageEvent) {
+      if (event.storageArea === localStorage && (event.key === null || event.key === legacyTakeKey(id))) refresh();
+    }
+    window.addEventListener("storage", sync);
+    refresh();
+    return () => {
+      stopWatching();
+      stopPageReturn();
+      window.removeEventListener("storage", sync);
+    };
+  }, [id]);
+  return { ...state, save: (take: LegacyTake) => writeLegacyTake(id, take) };
+}
+
+const temporaryMessage = "This take is only available in this tab. Download it before reloading or closing.";
+
+function LegacyTakeDownload({ id, take }: { id: TakeId; take: LegacyTake }) {
+  const type = take.audio.slice(5, take.audio.indexOf(";"));
+  return <a className="ui-link min-h-11 text-[14px]" href={take.audio}
+    download={`firstsong-${id}.${audioExtension(type)}`}>Download take</a>;
 }
 
 export function FirstHookCue() {
-  const { value: take } = useStageZeroHook(true);
+  const { value: take, temporary } = useLegacyTake("hook");
   const playback = useRef<HTMLAudioElement>(null);
   if (!take) return null;
   return (
@@ -58,6 +86,10 @@ export function FirstHookCue() {
       <div className="space-y-2 pb-3">
         <p className="text-[13px] text-[var(--muted)]">Play your Stage 0 take, then try your title line again.</p>
         <audio ref={playback} className="studio-audio w-full" controls preload="metadata" src={take.audio} aria-label="Stage 0 hook reference" />
+        {temporary && <>
+          <LegacyTakeDownload id="hook" take={take} />
+          <p className="text-[13px] text-[var(--ink-soft)]" role="status">{temporaryMessage}</p>
+        </>}
       </div>
     </details>
   );
@@ -76,9 +108,9 @@ export function Recordings({
   onRhythm: (rhythm: Rhythm) => void;
   onBusy: (busy: boolean) => void;
 }) {
-  const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake });
-  const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake });
-  const hook = useStageZeroHook();
+  const takeA = useLegacyTake("rhythm-a");
+  const takeB = useLegacyTake("rhythm-b");
+  const hook = useLegacyTake("hook");
   const takes = { "rhythm-a": takeA, "rhythm-b": takeB, hook };
 
   const [state, setState] = useState<RecorderState>(CLEAR_STATE);
@@ -271,7 +303,7 @@ export function Recordings({
           const saved = takes[id].save(take);
           finish(saved
             ? "Take saved in this browser and ready to play back."
-            : "This take is playable now but could not be saved for your next visit.");
+            : "Recording finished.");
         } catch {
           if (request === operation.current) finish("The take could not be read. Try recording again.");
         }
@@ -330,6 +362,7 @@ export function Recordings({
               take={takes[id].value}
               ready={takes[id].ready}
               warning={takes[id].warning}
+              temporary={takes[id].temporary}
               state={state}
               elapsed={elapsed}
               preferred={rhythm === id}
@@ -357,6 +390,7 @@ function TakeSlot({
   take,
   ready,
   warning,
+  temporary,
   state,
   elapsed,
   preferred,
@@ -370,6 +404,7 @@ function TakeSlot({
   take: LegacyTake | null;
   ready: boolean;
   warning: string;
+  temporary: boolean;
   state: RecorderState;
   elapsed: number;
   preferred: boolean;
@@ -443,6 +478,10 @@ function TakeSlot({
             <p className="text-[13px] text-[var(--ink-soft)]" id={captionId}>
               {take.caption || defaultCaptions[id]}
             </p>
+            {temporary && <>
+              <LegacyTakeDownload id={id} take={take} />
+              <p className="text-[13px] text-[var(--ink-soft)]" role="status">{temporaryMessage}</p>
+            </>}
             <details className="text-[13px] text-[var(--muted)]">
               <summary className="cursor-pointer font-medium hover:text-[var(--ink)]">
                 Edit caption
@@ -512,24 +551,24 @@ function TakeSlot({
 }
 
 export function LegacyTakeShelf() {
-  const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
-  const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
-  const hook = useStageZeroHook(true);
-  const takes = { "rhythm-a": takeA.value, "rhythm-b": takeB.value, hook: hook.value };
-  const saved = legacyTakes.map(({ id, label }) => ({ key: id, title: label, take: takes[id] })).filter(({ take }) => take !== null);
+  const takeA = useLegacyTake("rhythm-a");
+  const takeB = useLegacyTake("rhythm-b");
+  const hook = useLegacyTake("hook");
+  const takes = { "rhythm-a": takeA, "rhythm-b": takeB, hook };
+  const saved = legacyTakes.map(({ id, label }) => ({ key: id, title: label, take: takes[id].value, temporary: takes[id].temporary })).filter(({ take }) => take !== null);
   if (!saved.length) return null;
 
   return (
     <section aria-labelledby="legacy-takes" className="space-y-4 border-t border-[var(--line)] pt-5">
       <h2 id="legacy-takes" className="text-[16px] font-medium">From your first session</h2>
-      {saved.map(({ key, title, take }) => {
+      {saved.map(({ key, title, take, temporary }) => {
         if (!take) return null;
-        const type = take.audio.slice(5, take.audio.indexOf(";"));
         return (
           <div key={key} className="space-y-2">
             <h3 className="text-[14px]">{title}</h3>
             <audio className="studio-audio w-full" controls preload="metadata" src={take.audio} aria-label={`${title} playback`} />
-            <a className="ui-link min-h-11 text-[14px]" href={take.audio} download={`firstsong-${key}.${audioExtension(type)}`}>Download take</a>
+            <LegacyTakeDownload id={key} take={take} />
+            {temporary && <p className="text-[13px] text-[var(--ink-soft)]" role="status">{temporaryMessage}</p>}
           </div>
         );
       })}

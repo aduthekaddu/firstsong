@@ -1,5 +1,5 @@
 import { strToU8, zipSync, type Zippable } from "fflate";
-import { legacyTakes, parseLegacyTake } from "./legacy-takes";
+import { legacyTakes, readLegacyTake } from "./legacy-takes";
 import { studioTakes, type SongProject } from "./song-project";
 import { firstLineKey, readStageZeroWriting } from "./stage-zero";
 import { audioExtension, buildSongSheet, getTake } from "./studio-audio";
@@ -31,10 +31,8 @@ export async function buildSongBackup(song: SongProject, projectId?: string, not
 
   for (const { id, label } of (projectId ? [] : legacyTakes)) {
     try {
-      const stored = readLocal(`firstsong:v1:take:${id}`);
-      if (stored === null) continue;
-      const saved = parseLegacyTake(JSON.parse(stored));
-      if (!saved) throw new Error("Invalid Stage 0 recording.");
+      const { value: saved } = readLegacyTake(id);
+      if (!saved) continue;
       const comma = saved.audio.indexOf(",");
       const mimeType = saved.audio.slice(5, comma - ";base64".length);
       const file = `takes/stage-0-${id}.${audioExtension(mimeType)}`;
