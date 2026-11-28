@@ -531,6 +531,75 @@ test("independent songs keep their own words and audio without changing the cour
   await expect(page.getByText("My original guided song", { exact: true })).toBeVisible();
 });
 
+test("an unsaved guided lyric survives the next step and a refresh from another tab", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("week-1/");
+  await goStep(page, "Find a title line");
+  const line = page.getByLabel("Title line");
+  const warning = page.getByText("Some edits are only available in this tab. Copy them before reloading or closing.");
+  await line.fill("Old saved hook");
+  await page.evaluate(() => {
+    const setItem = Storage.prototype.setItem;
+    document.documentElement.dataset.rejectHook = "true";
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "firstsong:v1:song-project:hook" && document.documentElement.dataset.rejectHook === "true") {
+        throw new DOMException("Simulated quota exceeded", "QuotaExceededError");
+      }
+      setItem.call(this, key, value);
+    };
+  });
+  await line.fill("Rain against the window");
+  await expect(warning).toBeVisible();
+  await next(page);
+  await expect(page.getByRole("heading", { name: "Try two or three notes" })).toBeVisible();
+  await expect(line).toHaveValue("Rain against the window");
+  await expect(warning).toBeVisible();
+
+  const other = await context.newPage();
+  await other.goto("week-1/");
+  await expect(other.getByLabel("Title line")).toHaveValue("Old saved hook");
+  await other.evaluate(() => localStorage.setItem("firstsong:v1:song-project", JSON.stringify({ keyword: "window" })));
+  await expect(page.getByLabel("Word to land on")).toHaveValue("window");
+  await expect(line).toHaveValue("Rain against the window");
+  await expect(warning).toBeVisible();
+  await other.close();
+
+  await page.evaluate(() => delete document.documentElement.dataset.rejectHook);
+  await line.fill("Rain on the window");
+  await expect(warning).toHaveCount(0);
+  await page.reload();
+  await expect(line).toHaveValue("Rain on the window");
+});
+
+test("temporary Writing Room edits are isolated to their own draft", async ({ page }) => {
+  await page.goto("songbook/");
+  const create = page.getByRole("button", { name: "New blank song" });
+  await create.click();
+  const title = page.getByLabel("Song title");
+  const line = page.getByLabel("First line");
+  const warning = page.getByText("Some edits are only available in this tab. Copy them before reloading or closing.");
+  await title.fill("First draft");
+  await page.evaluate(() => {
+    const id = new URL(location.href).searchParams.get("song");
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === `firstsong:v1:draft:${id}:field:hook`) throw new DOMException("Simulated quota exceeded", "QuotaExceededError");
+      setItem.call(this, key, value);
+    };
+  });
+  await line.fill("The last train passed me");
+  await expect(warning).toBeVisible();
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
+  await create.click();
+  await expect(line).toBeEnabled();
+  await expect(line).toHaveValue("");
+  await expect(warning).toHaveCount(0);
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
+  await page.getByRole("link", { name: "First draft", exact: true }).click();
+  await expect(line).toHaveValue("The last train passed me");
+  await expect(warning).toBeVisible();
+});
+
 test("opening a Writing Room URL on a different device does not create or share the song", async ({ page }) => {
   await page.goto("songbook/write/?song=0123456789abcdef0123456789abcdef");
   await expect(page.getByText(/This song isn’t saved in this browser/)).toBeVisible();
