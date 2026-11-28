@@ -53,6 +53,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
     parse: parseRhythm,
   });
   const [busy, setBusy] = useState(false);
+  const [finalTakeEmpty, setFinalTakeEmpty] = useState(false);
   const { setRecording } = useRecordingNavigation();
   const handleRecordingBusy = useCallback((active: boolean) => {
     setBusy(active);
@@ -336,7 +337,8 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                         onBusy={handleRecordingBusy}
                       />
                     )}
-                    {!home && <SongWorkbench lessonId={lesson.id} stepId="checkpoint" />}
+                    {!home && <SongWorkbench lessonId={lesson.id} stepId="checkpoint"
+                      onFinalTakeEmptyChange={lesson.id === "week-6" ? setFinalTakeEmpty : undefined} />}
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -445,7 +447,7 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   className="btn-secondary"
                 >
                   <ArrowLeft size={15} strokeWidth={1.5} aria-hidden="true" />
-                  <span>{finished ? "Review last step" : "Previous step"}</span>
+                  <span>{finished ? (finalTakeEmpty ? "Record your final take" : "Review last step") : "Previous step"}</span>
                 </button>
 
                 {finished && lesson.id === "week-6" ? (

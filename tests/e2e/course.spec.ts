@@ -120,6 +120,8 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await page.setViewportSize({ width: 320, height: 750 });
   await page.getByRole("button", { name: "Finish Week 6" }).click();
   await expect(page.getByRole("heading", { name: "Week 6 checkpoint" })).toBeVisible();
+  await expect(page.getByLabel("Final song playback")).toHaveAttribute("src", /^blob:/);
+  await expect(page.getByRole("button", { name: "Review last step" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("link", { name: "Optional: layers and mix", exact: true }).click();
   await expect(page).toHaveURL(/\/firstsong\/weeks-7-8\/$/);
@@ -285,6 +287,30 @@ test("mic denial does not strand the learner", async ({ page }) => {
   await expect(page.getByText(/Microphone access was declined/)).toBeVisible();
   await next(page);
   await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
+  await page.getByRole("button", { name: "Finish Week 6" }).click();
+  await expect(page.getByText(/No take saved yet/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start your next song" })).toHaveAttribute("href", /\/songbook\/#new-song$/);
+  await expect(page.getByRole("link", { name: "Optional: layers and mix" })).toBeVisible();
+  await page.getByRole("button", { name: "Record your final take", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Record and trim a full take" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Record final song", exact: true })).toBeEnabled();
+});
+
+test("the Week 6 checkpoint does not report unreadable audio as an empty take", async ({ page }) => {
+  await page.addInitScript(() => {
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (key) {
+      if (this.name === "takes" && key === "final") throw new DOMException("Simulated unreadable take", "UnknownError");
+      return get.call(this, key);
+    };
+  });
+  await page.goto("week-6/");
+  await next(page);
+  await page.getByRole("button", { name: "Finish Week 6" }).click();
+  await expect(page.getByText("Couldn’t read the saved take in this browser.")).toBeVisible();
+  await expect(page.getByText(/No take saved yet/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Record your final take" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Review last step" })).toBeVisible();
 });
 
 test("leaving the tuner releases a microphone granted after the step has closed", async ({ page, context }) => {

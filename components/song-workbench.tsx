@@ -86,9 +86,9 @@ function LyricCue({ song }: { song: SongProject }) {
   );
 }
 
-export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "", onBusy, onSaved, archive = false }: {
+export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "", onBusy, onSaved, onFinalTakeEmptyChange, archive = false }: {
   lessonId: string; stepId: string; firstLine?: string; oldNotes?: string;
-  onBusy?: (busy: boolean) => void; onSaved?: () => void; archive?: boolean;
+  onBusy?: (busy: boolean) => void; onSaved?: () => void; onFinalTakeEmptyChange?: (empty: boolean) => void; archive?: boolean;
 }) {
   const readOnly = stepId === "checkpoint" || archive;
   const exercise: Exercise | undefined = archive
@@ -187,6 +187,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
         {exercise.firstHookCue && <FirstHookCue />}
         {exercise.takes?.map((spec) => <StudioTake key={spec.id} spec={spec} readOnly={readOnly} hideEmpty={archive}
           disabled={active !== null && active !== spec.id} onSaved={onSaved}
+          onEmptyChange={spec.id === studioTakes.final.id ? onFinalTakeEmptyChange : undefined}
           onBusy={(busy) => {
             setActive(busy ? spec.id : null);
             onBusy?.(busy);

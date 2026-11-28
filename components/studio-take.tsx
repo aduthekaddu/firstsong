@@ -8,12 +8,13 @@ import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
 
-export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled = false, hideEmpty = false, filenameId = spec.id, heading: Heading = "h4" }: {
-  spec: TakeSpec; onBusy?: (busy: boolean) => void; onSaved?: () => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean; filenameId?: string; heading?: "h2" | "h4";
+export function StudioTake({ spec, onBusy, onSaved, onEmptyChange, readOnly = false, disabled = false, hideEmpty = false, filenameId = spec.id, heading: Heading = "h4" }: {
+  spec: TakeSpec; onBusy?: (busy: boolean) => void; onSaved?: () => void; onEmptyChange?: (empty: boolean) => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean; filenameId?: string; heading?: "h2" | "h4";
 }) {
   const [take, setTake] = useState<Take | null>(null);
   const [temporary, setTemporary] = useState(false);
   const [ready, setReady] = useState(false);
+  const [readFailed, setReadFailed] = useState(false);
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [tempo, setTempo] = useState(60);
@@ -61,14 +62,21 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
     getTake(spec.id).then(
       (data) => {
         if (!active) return;
+        setReadFailed(false);
         const fallback = getTemporaryTake(spec.id);
         setTemporary(!!fallback);
         setTake((prior) => fallback ?? (sameStudioTake(prior, data) ? prior : data));
       },
-      () => { if (active) setMessage((prior) => prior || "Saved takes could not be read. If you record, download the take before closing this page."); },
+      () => { if (active) setReadFailed(true); },
     ).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, [spec.id, phase, refreshCount]);
+
+  const confirmedEmpty = ready && !readFailed && !take;
+  useEffect(() => {
+    onEmptyChange?.(confirmedEmpty);
+    return () => onEmptyChange?.(false);
+  }, [confirmedEmpty, onEmptyChange]);
 
   useEffect(() => {
     if (!take) return;
@@ -253,7 +261,10 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
   const ending = phase === "save";
   const duration = spec.bars ? spec.bars * 4 * 60 / tempo : spec.maxSeconds;
   const bar = Math.min(spec.bars ?? 1, Math.floor(elapsed / (4 * 60 / tempo)) + 1);
-  if (hideEmpty && !take && !message) return null;
+  const status = message || (readFailed
+    ? readOnly ? "Couldn’t read the saved take in this browser." : "Saved takes could not be read. If you record, download the take before closing this page."
+    : "");
+  if (hideEmpty && !take && !status) return null;
   return (
     <section aria-label={spec.label} className="min-w-0 space-y-3 border-t border-[var(--line)] pt-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -281,7 +292,7 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
       {take && url && !active && (
         <audio ref={playback} className="studio-audio w-full" controls preload="metadata" src={url} aria-label={`${spec.label} playback`} />
       )}
-      {ready && !take && readOnly && <p className="text-[14px] text-[var(--muted)]">No take saved yet. Review the recording step to make one.</p>}
+      {confirmedEmpty && readOnly && <p className="text-[14px] text-[var(--muted)]">No take saved yet. Review the recording step to make one.</p>}
       <div className="flex flex-wrap gap-2">
         {!readOnly && (
           <button className={phase === "record" ? "btn-primary" : "btn-secondary"} data-tone={phase === "record" ? "accent" : undefined} type="button"
@@ -303,7 +314,7 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
       {temporary && <p className="text-[13px] text-[var(--ink-soft)]" role="status">
         This take is only available in this tab. Download it before closing or reloading.
       </p>}
-      {message && <p className="text-[13px] text-[var(--muted)]" role="status">{message}</p>}
+      {status && <p className="text-[13px] text-[var(--muted)]" role="status">{status}</p>}
       {take && spec.trim && !active && !ending && <TrimTake key={take.createdAt} take={take} filenameId={filenameId} />}
     </section>
   );
