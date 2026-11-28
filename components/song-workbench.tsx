@@ -120,7 +120,14 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
         </div>
       )}
 
-      {exercise.cue && <p className="border-l-2 border-[var(--line-strong)] pl-4 text-[14px] leading-relaxed text-[var(--ink-soft)]">{exercise.cue}</p>}
+      {exercise.cue && (
+        <div className="space-y-2 border-l-2 border-[var(--line-strong)] pl-4 text-[14px] leading-relaxed text-[var(--ink-soft)]">
+          <p>{exercise.cue}</p>
+          {lessonId === "weeks-7-8" && stepId === "layers" && (
+            <p>Using GarageBand on iPhone? Turn on <strong>Automatic</strong> for the song section length before importing your WAV from Files so the whole take comes through. <a className="ui-link" href="https://support.apple.com/en-ca/guide/garageband-iphone/chsab9d208e/ios" target="_blank" rel="noopener noreferrer">Apple’s import guide</a></p>
+          )}
+        </div>
+      )}
       {exercise.chord && (
         <div className="space-y-3 border-t border-[var(--line)] pt-4">
           <div className="grid grid-cols-1 gap-5 min-[400px]:grid-cols-2 sm:max-w-[440px] sm:gap-6">

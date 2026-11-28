@@ -291,6 +291,9 @@ test("optional passes export full-length WAVs without trimming silence or replac
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
   await page.goto("weeks-7-8/");
+  await expect(page.getByText(/Turn on Automatic for the song section length/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Apple’s import guide" })).toHaveAttribute("href",
+    "https://support.apple.com/en-ca/guide/garageband-iphone/chsab9d208e/ios");
   await installTone(page, true);
 
   for (const [label, filename] of [
