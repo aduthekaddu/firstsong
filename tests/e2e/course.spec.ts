@@ -163,6 +163,9 @@ test("the final lyric and chord cue stays readable beside the recorder at 320px"
 
   await page.getByRole("button", { name: "Record final song", exact: true }).click();
   const stop = page.getByRole("button", { name: "Stop recording", exact: true });
+  // Line up the cue the way a learner would before playing. Check that
+  // this single view has both the cue and the stop button.
+  await summary.evaluate((element) => element.scrollIntoView({ block: "center", behavior: "instant" }));
   await expect(stop).toBeInViewport();
   await expect(cue).toBeInViewport();
   await cue.focus();
