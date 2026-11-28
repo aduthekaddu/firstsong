@@ -25,12 +25,24 @@ test("WAV trim uses sample boundaries, interleaves stereo and clips safely", asy
   assert.throws(() => encodeWav([new Float32Array(4)], 4, 0.5, 0.5), /nonempty/);
 });
 
-test("song sheet keeps its form, section copy and Unicode", () => {
-  const sheet = buildSongSheet({ ...emptySong, title: "  Rañn  ", hook: "rain on the coat", verseOne: "a bus in Pune", verseTwo: "the next morning", chords: "Em | Asus2", arrangement: "softer" });
-  assert.match(sheet, /^Rañn\n\nForm:/);
-  assert.match(sheet, /Verse 1\na bus in Pune\n\nChorus\nrain on the coat\n\nVerse 2\nthe next morning/);
+test("song sheet keeps distinct authored sections and Unicode", () => {
+  const sheet = buildSongSheet({ ...emptySong, title: "  Rañn  ", hook: "rain on the coat", verseOne: "a bus in Pune", chorus: "the windows wake\nunder a grey sky", verseTwo: "the next morning", chords: "Em | Asus2", arrangement: "softer" });
+  assert.match(sheet, /^Rañn\n\nChords\nEm \| Asus2/);
+  assert.match(sheet, /Hook\nrain on the coat\n\nVerse 1\na bus in Pune\n\nChorus\nthe windows wake\nunder a grey sky\n\nVerse 2\nthe next morning/);
   assert.match(sheet, /Arrangement notes\nsofter/);
-  assert.doesNotMatch(sheet, /Ending/);
+  assert.doesNotMatch(sheet, /Ending|Form:/);
+});
+
+test("a hook without an authored chorus is never relabeled or dropped", () => {
+  for (const chorus of ["", "  \n "]) {
+    const song = { ...emptySong, hook: "first words", chorus };
+    assert.equal(buildSongSheet(song), "Untitled song\n\nHook\nfirst words\n");
+    assert.equal(buildSongSheet(song, { independent: true }), "Untitled song\n\nFirst line\nfirst words\n");
+  }
+});
+
+test("an audio-only backup sheet has no invented lyrics or arrangement", () => {
+  assert.equal(buildSongSheet(emptySong), "Untitled song\n");
 });
 
 test("song parser coerces nothing and limits persisted field sizes", () => {

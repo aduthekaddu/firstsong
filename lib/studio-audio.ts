@@ -225,14 +225,17 @@ export function formatClock(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-export function buildSongSheet(fields: { title: string; hook: string; verseOne: string; verseTwo: string; chorus: string; chords: string; ending: string; arrangement: string }, firstLine = "") {
+export function buildSongSheet(
+  fields: { title: string; hook: string; verseOne: string; verseTwo: string; chorus: string; chords: string; ending: string; arrangement: string },
+  { stageZeroLine = "", independent = false } = {},
+) {
   return [
     fields.title.trim() || "Untitled song",
-    "Form: verse 1 → chorus → verse 2 → chorus",
     ...([
-      ["Chords", fields.chords], ["Verse 1", fields.verseOne], ["Chorus", fields.chorus || fields.hook],
-      ["Verse 2", fields.verseTwo], ["Ending", fields.ending], ["Arrangement notes", fields.arrangement],
-      ["Stage 0 first line", firstLine],
+      ["Chords", fields.chords], [independent ? "First line" : "Hook", fields.hook],
+      ["Verse 1", fields.verseOne], ["Chorus", fields.chorus], ["Verse 2", fields.verseTwo],
+      ["Ending", fields.ending], ["Arrangement notes", fields.arrangement],
+      ["Stage 0 first line", stageZeroLine],
     ].filter(([, value]) => value.trim()).map(([label, value]) => `${label}\n${value.trim()}`)),
   ].join("\n\n") + "\n";
 }

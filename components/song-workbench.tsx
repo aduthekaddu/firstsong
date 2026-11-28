@@ -55,14 +55,13 @@ const checkpoints: Record<string, Exercise> = {
   "weeks-7-8": { takes: [studioTakes.guitar, studioTakes.vocal], sheet: true },
 };
 
-const cueFields = ["chords", "verseOne", "chorus", "verseTwo", "ending", "arrangement"] as const;
+const cueFields = ["chords", "hook", "verseOne", "chorus", "verseTwo", "ending", "arrangement"] as const;
 
 function LyricCue({ song }: { song: SongProject }) {
   const labelId = useId();
   const sections = cueFields.flatMap((field) => {
-    const text = field === "chorus" ? song.chorus.trim() || song.hook.trim() : song[field].trim();
-    const label = field === "chorus" && !song.chorus.trim() ? fields.hook.label : fields[field].label;
-    return text ? [{ field, label, text }] : [];
+    const text = song[field].trim();
+    return text ? [{ field, label: fields[field].label, text }] : [];
   });
   if (!sections.length) return null;
   return (

@@ -67,7 +67,7 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await page.getByLabel("Verse 1").fill("My coat drips by the door");
   await page.getByRole("button", { name: "Finish Week 2" }).click();
   await page.getByRole("link", { name: "Continue to Week 3" }).click();
-  await page.getByLabel("Chorus", { exact: true }).fill("Rain in my blue cup");
+  await page.getByLabel("Chorus", { exact: true }).fill("Leave a light on again");
   await next(page);
   await record(page, "verse and chorus");
   await page.getByRole("button", { name: "Finish Week 3" }).click();
@@ -107,7 +107,15 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await page.getByRole("button", { name: "Download lyrics and chords" }).click();
   const sheet = await sheetDownload;
   expect(sheet.suggestedFilename()).toBe("blue-cup-lyrics-and-chords.txt");
-  expect(await readFile((await sheet.path())!, "utf8")).toContain("Em | Asus2");
+  const directSheet = await readFile((await sheet.path())!, "utf8");
+  expect(directSheet).toContain("Em | Asus2");
+  expect(directSheet).toContain("Hook\nRain in my blue cup");
+  expect(directSheet).toContain("Chorus\nLeave a light on again");
+  await page.getByRole("button", { name: "Back up your song" }).click();
+  const guidedZip = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save ZIP", exact: true }).press("Enter");
+  const files = unzipSync(await readFile((await (await guidedZip).path())!));
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toEqual(directSheet);
   await page.setViewportSize({ width: 320, height: 750 });
   await page.getByRole("button", { name: "Finish Week 6" }).click();
   await expect(page.getByRole("heading", { name: "Week 6 checkpoint" })).toBeVisible();
@@ -163,7 +171,7 @@ test("the final lyric and chord cue stays readable beside the recorder at 320px"
   const chorus = "Blue cup in the rain\nLeave a light on again";
   await page.evaluate(({ verse, chorus }) => {
     localStorage.setItem("firstsong:v1:song-project", JSON.stringify({
-      title: "Blue Cup", verseOne: verse, chorus, verseTwo: "A".repeat(160), chords: "Verse: Em | Asus2",
+      title: "Blue Cup", hook: "Rain in my blue cup", verseOne: verse, chorus, verseTwo: "A".repeat(160), chords: "Verse: Em | Asus2",
       ending: "Let Em ring", arrangement: "Strum quietly\n".repeat(30),
     }));
   }, { verse, chorus });
@@ -174,6 +182,7 @@ test("the final lyric and chord cue stays readable beside the recorder at 320px"
   await expect(cue).toBeVisible();
   expect(await cue.locator('[data-cue="verseOne"]').textContent()).toBe(verse);
   expect(await cue.locator('[data-cue="chorus"]').textContent()).toBe(chorus);
+  expect(await cue.locator('[data-cue="hook"]').textContent()).toBe("Rain in my blue cup");
   await expect(cue.locator('[data-cue="verseOne"]')).toHaveCSS("white-space", "pre-wrap");
   await expect(cue.getByText("Verse: Em | Asus2", { exact: true })).toBeVisible();
   await expect(cue.getByText("Let Em ring", { exact: true })).toBeAttached();
@@ -503,6 +512,7 @@ test("independent songs keep their own words and audio without changing the cour
   await expect(title).toHaveValue("");
   await expect(page.getByLabel("First line")).toHaveValue("");
   await title.fill("Station lights");
+  await page.getByLabel("Chorus", { exact: true }).fill("The station lights stay on");
   await page.getByLabel("First line").fill("The empty train passed me");
   await page.getByLabel("Chords by section").fill("Em | Asus2");
 
@@ -537,7 +547,8 @@ test("independent songs keep their own words and audio without changing the cour
   const track = Object.keys(files).find((file) => file.startsWith("takes/recording."));
   expect(track).toBeDefined();
   expect(Array.from(files[track!])).toEqual(original);
-  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("The last train passed me");
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("First line\nThe last train passed me");
+  expect(strFromU8(files["lyrics-and-chords.txt"])).toContain("Chorus\nThe station lights stay on");
   expect(strFromU8(files["manifest.json"])).not.toContain("My original guided song");
 
   await page.getByRole("link", { name: "Back to your songbook" }).click();
@@ -746,7 +757,7 @@ test("a line-only Stage 0 backup works and independent songs never include the g
   await prepare.click();
   const guided = await downloadBackup();
   expect(guided.sheet).toContain(`Stage 0 first line\n${edited}`);
-  expect(guided.sheet).toContain(`Chorus\n${laterHook}`);
+  expect(guided.sheet).toContain(`Hook\n${laterHook}`);
   expect(guided.manifest.stageZero.firstLine).toBe(edited);
   expect(guided.manifest.song.hook).toBe(laterHook);
 

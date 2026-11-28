@@ -122,6 +122,7 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
   const files = unzipSync(await readFile((await archive.path())!));
   const track = Object.keys(files).find((name) => name.startsWith("takes/final."));
   expect(track).toBeDefined();
+  expect(Buffer.from(files["lyrics-and-chords.txt"]).toString("utf8")).toBe("Untitled song\n");
   expect(Array.from(createHash("sha256").update(files[track!]).digest())).toEqual(original);
 
 });

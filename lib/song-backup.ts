@@ -27,7 +27,7 @@ export async function buildSongBackup(song: SongProject, projectId?: string, not
     omissions.push({ id: `stage-0-${key}`, label: key === firstLineKey ? "Stage 0 first line" : "Stage 0 rhythm choice" });
   });
   // Store already encoded audio without recompressing it and keep each original intact.
-  const files: Zippable = { "manifest.json": new Uint8Array(), "lyrics-and-chords.txt": strToU8(buildSongSheet(song, earlier?.firstLine)) };
+  const files: Zippable = { "manifest.json": new Uint8Array(), "lyrics-and-chords.txt": strToU8(buildSongSheet(song, { stageZeroLine: earlier?.firstLine, independent: !!projectId })) };
 
   for (const { id, label } of (projectId ? [] : legacyTakes)) {
     try {
