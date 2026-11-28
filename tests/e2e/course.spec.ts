@@ -36,6 +36,7 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await page.getByLabel("Four sensory details").fill("Blue rim\nCold handle\nCoffee smell\nSpoon rattle");
   await page.getByLabel("Title line").fill("Rain in my blue cup");
   await next(page);
+  await expect(page.getByText("Listen to your first hook", { exact: true })).toHaveCount(0);
   await page.getByLabel("Word to land on").fill("blue");
   await next(page);
   await page.getByLabel("Four-bar memo tempo").selectOption("90");

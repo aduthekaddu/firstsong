@@ -10,7 +10,7 @@ import { chords } from "../lib/chords";
 import { ChordDiagram } from "./chord-diagram";
 import { SongBackup } from "./song-backup";
 import { StudioTake } from "./studio-take";
-import { LegacyTakeShelf } from "./recordings";
+import { FirstHookCue, LegacyTakeShelf } from "./recordings";
 
 const fields: Record<SongField, { label: string; hint: string; rows?: number }> = {
   title: { label: "Song title", hint: "A working title is enough." },
@@ -26,10 +26,10 @@ const fields: Record<SongField, { label: string; hint: string; rows?: number }> 
   revision: { label: "One thing to keep", hint: "Name what you heard and what you’ll use in the final take.", rows: 2 },
 };
 
-type Exercise = { fields?: SongField[]; takes?: TakeSpec[]; chord?: boolean; sheet?: boolean; backup?: boolean; lyricCue?: boolean; cue?: string };
+type Exercise = { fields?: SongField[]; takes?: TakeSpec[]; chord?: boolean; sheet?: boolean; backup?: boolean; lyricCue?: boolean; firstHookCue?: boolean; cue?: string };
 const exercises: Record<string, Exercise> = {
   "week-1:title": { fields: ["details", "hook"] },
-  "week-1:melody": { fields: ["hook", "keyword"], takes: [studioTakes.melody] },
+  "week-1:melody": { fields: ["hook", "keyword"], takes: [studioTakes.melody], firstHookCue: true },
   "week-1:memo": { fields: ["hook", "keyword"], takes: [studioTakes.memo] },
   "week-2:change": { chord: true, fields: ["chords"], cue: "Em: strum all six strings. Asus2: keep the low E quiet and start on A. Move slowly enough to keep counting." },
   "week-2:scene": { fields: ["verseOne"], takes: [studioTakes.verse] },
@@ -177,6 +177,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
         if (audio !== event.target) audio.pause();
       })}>
         {archive && <LegacyTakeShelf />}
+        {exercise.firstHookCue && <FirstHookCue />}
         {exercise.takes?.map((spec) => <StudioTake key={spec.id} spec={spec} readOnly={readOnly} hideEmpty={archive}
           disabled={active !== null && active !== spec.id} onSaved={onSaved}
           onBusy={(busy) => {

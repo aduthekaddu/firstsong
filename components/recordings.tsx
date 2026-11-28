@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, Mic, Square } from "lucide-react";
+import { Check, ChevronDown, Mic, Square } from "lucide-react";
 import { type Rhythm } from "../lib/stage-zero";
 import { useLocalValue } from "../lib/local-value";
 import { ticker } from "../lib/ticker";
@@ -39,6 +39,30 @@ function readAudio(blob: Blob) {
   });
 }
 
+function useStageZeroHook(syncAcrossTabs = false) {
+  return useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake, syncAcrossTabs });
+}
+
+export function FirstHookCue() {
+  const { value: take } = useStageZeroHook(true);
+  const playback = useRef<HTMLAudioElement>(null);
+  if (!take) return null;
+  return (
+    <details className="ledger-disclosure group border-y border-[var(--line)]" onToggle={(event) => {
+      if (!event.currentTarget.open) playback.current?.pause();
+    }}>
+      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 py-2 text-[14px] font-medium text-[var(--ink)]">
+        Listen to your first hook
+        <ChevronDown size={16} aria-hidden="true" className="shrink-0 text-[var(--muted)] group-open:rotate-180" />
+      </summary>
+      <div className="space-y-2 pb-3">
+        <p className="text-[13px] text-[var(--muted)]">Play your Stage 0 take, then try your title line again.</p>
+        <audio ref={playback} className="studio-audio w-full" controls preload="metadata" src={take.audio} aria-label="Stage 0 hook reference" />
+      </div>
+    </details>
+  );
+}
+
 export function Recordings({
   mode,
   line,
@@ -54,7 +78,7 @@ export function Recordings({
 }) {
   const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake });
   const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake });
-  const hook = useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake });
+  const hook = useStageZeroHook();
   const takes = { "rhythm-a": takeA, "rhythm-b": takeB, hook };
 
   const [state, setState] = useState<RecorderState>(CLEAR_STATE);
@@ -490,7 +514,7 @@ function TakeSlot({
 export function LegacyTakeShelf() {
   const takeA = useLocalValue<LegacyTake | null>({ key: "take:rhythm-a", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
   const takeB = useLocalValue<LegacyTake | null>({ key: "take:rhythm-b", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
-  const hook = useLocalValue<LegacyTake | null>({ key: "take:hook", initial: null, parse: parseLegacyTake, syncAcrossTabs: true });
+  const hook = useStageZeroHook(true);
   const takes = { "rhythm-a": takeA.value, "rhythm-b": takeB.value, hook: hook.value };
   const saved = legacyTakes.map(({ id, label }) => ({ key: id, title: label, take: takes[id] })).filter(({ take }) => take !== null);
   if (!saved.length) return null;

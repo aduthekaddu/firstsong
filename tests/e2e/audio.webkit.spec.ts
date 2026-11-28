@@ -147,7 +147,7 @@ test("a saved first-step sound check becomes the home resume point in WebKit", a
   expect(await digest(page.getByLabel("Sound check playback"))).toEqual(original);
 });
 
-test("WebKit saves a Stage 0 hook and plays it after reload", async ({ page, context }) => {
+test("WebKit carries a saved Stage 0 hook into a separate Week 1 melody", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
   await page.goto("./#lesson");
@@ -173,6 +173,40 @@ test("WebKit saves a Stage 0 hook and plays it after reload", async ({ page, con
     await audio.play();
   });
   await expect.poll(() => playback.evaluate((audio: HTMLAudioElement) => audio.currentTime)).toBeGreaterThan(0.05);
+
+  await page.goto("week-1/");
+  await page.getByRole("navigation", { name: "Session steps" }).getByRole("button", { name: "Try two or three notes" }).click();
+  const disclosure = page.getByText("Listen to your first hook", { exact: true });
+  const reference = page.getByLabel("Stage 0 hook reference");
+  await expect(reference).toBeHidden();
+  await disclosure.click();
+  await expect(reference).toBeVisible();
+  expect(await digest(reference)).toEqual(original);
+  await installTone(page);
+  // Loop the short reference so it cannot end before the record click.
+  const sketchButton = page.getByRole("button", { name: "Record melody sketch", exact: true });
+  await reference.evaluate(async (audio: HTMLAudioElement) => {
+    audio.muted = true;
+    audio.loop = true;
+    await audio.play();
+  });
+  expect(await reference.evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(false);
+  await sketchButton.click();
+  await expect.poll(() => reference.evaluate((audio: HTMLAudioElement) => audio.paused)).toBe(true);
+  await expect(page.getByText(/0:02 \/ /)).toBeVisible();
+  await page.getByRole("button", { name: "Stop recording", exact: true }).click();
+  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  const melody = page.getByLabel("Melody sketch playback");
+  await expect(melody).toHaveAttribute("src", /^blob:/);
+  const sketch = await digest(melody);
+  expect(sketch).not.toEqual(original);
+
+  await page.goto("songbook/");
+  const shelfHook = page.getByLabel("Stage 0 hook playback");
+  await expect(shelfHook).toHaveAttribute("src", /^data:audio\//);
+  await expect(melody).toHaveAttribute("src", /^blob:/);
+  expect(await digest(shelfHook)).toEqual(original);
+  expect(await digest(melody)).toEqual(sketch);
 });
 
 test("WebKit keeps a separate Writing Room take across reopening and exports it", async ({ page, context }) => {
