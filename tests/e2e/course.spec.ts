@@ -74,7 +74,7 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await expect(page.getByLabel("Verse and chorus playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await page.getByRole("link", { name: "Continue to Week 4" }).click();
   await expect(page.getByLabel("Verse 1")).toHaveValue("My coat drips by the door");
-  await page.getByLabel("Song title").fill("Blue Cup");
+  await page.getByLabel("Song title").fill("Été / à: Goa");
   await page.getByLabel("Verse 2").fill("Morning on the windowsill");
   await next(page);
   await page.getByLabel("How it ends").fill("Let Em ring");
@@ -106,8 +106,9 @@ test("a phone learner carries a hook through the course and downloads audio and 
   const sheetDownload = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download lyrics and chords" }).click();
   const sheet = await sheetDownload;
-  expect(sheet.suggestedFilename()).toBe("blue-cup-lyrics-and-chords.txt");
+  expect(sheet.suggestedFilename().normalize("NFC")).toBe("été-à-goa-lyrics-and-chords.txt");
   const directSheet = await readFile((await sheet.path())!, "utf8");
+  expect(directSheet).toContain("Été / à: Goa");
   expect(directSheet).toContain("Em | Asus2");
   expect(directSheet).toContain("Hook\nRain in my blue cup");
   expect(directSheet).toContain("Chorus\nLeave a light on again");
@@ -134,7 +135,7 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await expect(page.getByLabel("Song title")).toHaveValue("");
   await page.getByRole("link", { name: "Back to your songbook" }).click();
   await expect(page.getByRole("heading", { name: "Your songbook" })).toBeVisible();
-  await expect(page.getByText("Blue Cup", { exact: true })).toBeVisible();
+  await expect(page.getByText("Été / à: Goa", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Final song playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Chorus A playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Chorus B playback", { exact: true })).toHaveAttribute("src", /^blob:/);
@@ -570,6 +571,24 @@ test("independent songs keep their own words and audio without changing the cour
   await page.goto("week-1/#lesson");
   await expect(page.getByRole("heading", { name: "Week 1 checkpoint" })).toBeVisible();
   await expect(page.getByText("My original guided song", { exact: true })).toBeVisible();
+});
+
+test("two Writing Room ZIPs use different Unicode song titles in their download names", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-28T13:00:00Z"));
+  await page.goto("songbook/");
+  for (const [title, fileStem] of [["बारिश", "बारिश"], ["नई धुन", "नई-धुन"]]) {
+    await page.getByRole("button", { name: "New blank song" }).click();
+    await page.getByLabel("Song title").fill(title);
+    await page.getByRole("button", { name: "Back up your song" }).click();
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save ZIP", exact: true }).press("Enter");
+    const archive = await pending;
+    expect(archive.suggestedFilename().normalize("NFC")).toBe(`firstsong-${fileStem}-2026-11-28.zip`);
+    const files = unzipSync(await readFile((await archive.path())!));
+    expect(JSON.parse(strFromU8(files["manifest.json"])).song.title).toBe(title);
+    expect(strFromU8(files["lyrics-and-chords.txt"])).toBe(`${title}\n`);
+    await page.getByRole("link", { name: "Back to your songbook" }).click();
+  }
 });
 
 test("an unsaved guided lyric survives the next step and a refresh from another tab", async ({ page, context }) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { songFileStem } from "../lib/export-names";
 import { RecordingLink as Link } from "./recording-navigation";
 import { ChevronDown, Download } from "lucide-react";
 import { buildSongSheet, downloadFile } from "../lib/studio-audio";
@@ -104,7 +105,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
 
   function exportSheet() {
     const sheet = buildSongSheet(song.value);
-    const stem = song.value.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "firstsong";
+    const stem = songFileStem(song.value.title, 60) || "firstsong";
     downloadFile(new Blob([sheet], { type: "text/plain;charset=utf-8" }), `${stem}-lyrics-and-chords.txt`);
   }
 

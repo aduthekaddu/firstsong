@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { songFileStem } from "../lib/export-names";
 import { Download } from "lucide-react";
 import type { BackupOmission } from "../lib/song-backup";
 import { studioTakes, type SongProject } from "../lib/song-project";
@@ -50,7 +51,7 @@ export function SongBackup({ song, ready, recording, projectId, notesUnreadable 
         return;
       }
       const date = new Date().toISOString().slice(0, 10);
-      const title = projectId ? song.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) : "";
+      const title = projectId ? songFileStem(song.title, 48) : "";
       const { blob, takeCount, omissions } = result;
       const suffix = omissions.length ? "-partial.zip" : ".zip";
       setPreparation({ kind: "ready", filename: `firstsong-${title || "backup"}-${date}${suffix}`, snapshot: song, revision: started, blob, takeCount, omissions });
