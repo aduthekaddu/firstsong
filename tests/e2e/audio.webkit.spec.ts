@@ -130,8 +130,8 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
 test("a saved first-step sound check becomes the home resume point in WebKit", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
-  await page.goto("week-1/");
-  await page.getByLabel("Title line").fill("An earlier start");
+  await page.goto("week-2/");
+  await page.getByLabel("Chords by section").fill("Verse: Em | Asus2");
   await page.goto("week-6/");
   await expect(page.getByRole("heading", { name: "Test your sound" })).toBeVisible();
   await installTone(page);
