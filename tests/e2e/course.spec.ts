@@ -732,12 +732,28 @@ test("the Stage 0 mic tuner uses the chosen physical string for peg direction", 
   await page.setViewportSize({ width: 320, height: 760 });
   await context.grantPermissions(["microphone"]);
   await page.addInitScript(() => {
+    const createBufferSource = AudioContext.prototype.createBufferSource;
+    AudioContext.prototype.createBufferSource = function () {
+      const source = createBufferSource.call(this);
+      source.addEventListener("ended", () => {
+        const data = document.documentElement.dataset;
+        data.tuningTestEnded = String(Number(data.tuningTestEnded ?? "0") + 1);
+        data.tuningTestLastEnd = String(performance.now());
+        delete data.tuningTestDelayAfterEnd;
+      });
+      return source;
+    };
     const createAnalyser = AudioContext.prototype.createAnalyser;
     AudioContext.prototype.createAnalyser = function () {
       const analyser = createAnalyser.call(this);
       const rate = this.sampleRate;
       analyser.getFloatTimeDomainData = (target) => {
-        const hz = Number(document.documentElement.dataset.tuningTestHz ?? "98");
+        const data = document.documentElement.dataset;
+        data.tuningTestReads = String(Number(data.tuningTestReads ?? "0") + 1);
+        if (data.tuningTestLastEnd && !data.tuningTestDelayAfterEnd) {
+          data.tuningTestDelayAfterEnd = String(performance.now() - Number(data.tuningTestLastEnd));
+        }
+        const hz = Number(data.tuningTestHz ?? "98");
         for (let i = 0; i < target.length; i++) target[i] = 0.35 * Math.sin(2 * Math.PI * hz * i / rate);
       };
       return analyser;
@@ -759,6 +775,34 @@ test("the Stage 0 mic tuner uses the chosen physical string for peg direction", 
   await expect(page.getByText("Low E is in tune", { exact: true })).toHaveCount(0);
   await page.evaluate(() => { document.documentElement.dataset.tuningTestHz = "82.41"; });
   await expect(page.getByText("Low E is in tune", { exact: true })).toBeVisible();
+  const guide = page.getByText("Listen to the reference, then pluck your selected open string.", { exact: true });
+  const lock = page.getByText("Low E is in tune", { exact: true });
+  const lowE = page.getByRole("button", { name: /Low E E2/ });
+  const a = page.getByRole("button", { name: /A A2/ });
+  await lowE.click();
+  await expect(lowE).toHaveAttribute("data-playing", "true");
+  await expect(guide).toBeVisible();
+  await expect(lock).toHaveCount(0);
+  await a.click();
+  await expect(a).toHaveAttribute("data-playing", "true");
+  await expect.poll(() => page.locator("html").getAttribute("data-tuning-test-ended")).toBe("1");
+  // The previous source has ended. Even a continuous in-tune analyser
+  // fixture must not drive pitch feedback during the newer reference.
+  const paused = await page.evaluate(async () => {
+    const data = document.documentElement.dataset;
+    const reads = data.tuningTestReads;
+    for (let frame = 0; frame < 8; frame++) await new Promise(requestAnimationFrame);
+    return { before: reads, after: data.tuningTestReads, ended: data.tuningTestEnded };
+  });
+  expect(paused.after).toBe(paused.before);
+  expect(paused.ended).toBe("1");
+  await expect(guide).toBeVisible();
+  await expect(lock).toHaveCount(0);
+  await expect(a).toHaveAttribute("data-playing", "false");
+  await expect(lock).toBeVisible();
+  const settleDelay = Number(await page.locator("html").getAttribute("data-tuning-test-delay-after-end"));
+  expect(settleDelay).toBeGreaterThanOrEqual(165);
+  await expect(selector).toHaveValue("0");
   await page.getByRole("button", { name: "Stop mic tuner" }).click();
   await expect(selector).toHaveCount(0);
 });

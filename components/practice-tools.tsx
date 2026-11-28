@@ -8,6 +8,10 @@ import { openAudio, pluckString, scheduleMetronomeClick } from "../lib/sound";
 import { ticker } from "../lib/ticker";
 import { ChordDiagram } from "./chord-diagram";
 
+// Let the analyser window and any short speaker tail clear before accepting pitch again.
+const referenceSettleMs = 180;
+const listenThenPluck = "Listen to the reference, then pluck your selected open string.";
+
 /**
  * Studio Tuner:
  * Combines 6 physical Karplus-Strong acoustic reference strings (E2-E4)
@@ -19,6 +23,8 @@ export function Tuner() {
   const audioRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const requestRef = useRef(0);
+  const referenceBusyRef = useRef(false);
+  const referenceQuietAtRef = useRef(0);
 
   // Live mic tuner refs (mutated imperatively at 60fps, zero React re-renders)
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -54,7 +60,11 @@ export function Tuner() {
     if (ctx && ctx.state !== "closed") void ctx.close().catch(() => {});
   }
 
-  function clearReading() {
+  function referenceBlocksPitch() {
+    return referenceBusyRef.current || performance.now() < referenceQuietAtRef.current;
+  }
+
+  function clearReading(waitForReference = referenceBlocksPitch()) {
     if (strobeNoteRef.current) {
       strobeNoteRef.current.textContent = guitarStrings[targetIndexRef.current].name;
       strobeNoteRef.current.style.color = "var(--ink)";
@@ -65,7 +75,8 @@ export function Tuner() {
       strobeCentsRef.current.style.color = "var(--ink-soft)";
     }
     if (strobeGuideRef.current) {
-      strobeGuideRef.current.textContent = "Pluck the selected open string near the mic.";
+      strobeGuideRef.current.textContent = waitForReference
+        ? listenThenPluck : "Pluck the selected open string near the mic.";
       strobeGuideRef.current.style.color = "var(--muted)";
     }
     if (needleRef.current) {
@@ -91,15 +102,21 @@ export function Tuner() {
     }
   }
 
+  function stopReferenceSource() {
+    const source = activeSourceRef.current;
+    activeSourceRef.current = null;
+    try {
+      source?.stop();
+    } catch {
+      // Already ended.
+    }
+  }
+
   useEffect(() => {
     return () => {
       requestRef.current++;
       releaseMic();
-      try {
-        activeSourceRef.current?.stop();
-      } catch {
-        // Already ended
-      }
+      stopReferenceSource();
     };
   }, []);
 
@@ -150,8 +167,20 @@ export function Tuner() {
       let history: ReturnType<typeof tuningFeedback> | null = null;
       let lastTarget = -1;
       let holdFrames = 0;
+      let referencePaused = false;
 
       micUnsubRef.current = ticker.subscribe(() => {
+        if (referenceBlocksPitch()) {
+          if (!referencePaused) clearReading(true);
+          referencePaused = true;
+          history = null;
+          holdFrames = 0;
+          return;
+        }
+        if (referencePaused) {
+          referencePaused = false;
+          clearReading(false);
+        }
         const index = targetIndexRef.current;
         if (lastTarget !== index) {
           history = null;
@@ -223,18 +252,24 @@ export function Tuner() {
 
   async function playReference(note: (typeof guitarStrings)[number], index: number) {
     const id = ++requestRef.current;
+    referenceBusyRef.current = true;
+    stopReferenceSource();
     setPlaying(note.name);
-    setHeard((prev) => (prev.includes(note.name) ? prev : [...prev, note.name]));
+    if (micStreamRef.current) clearReading(true);
+
+    const finish = () => {
+      // An old source's ended event cannot lift a newer note's pause.
+      if (id !== requestRef.current) return;
+      activeSourceRef.current = null;
+      referenceBusyRef.current = false;
+      referenceQuietAtRef.current = performance.now() + referenceSettleMs;
+      setPlaying("");
+    };
 
     try {
       const ctx = await openAudio(audioRef.current);
       if (id !== requestRef.current) return;
       audioRef.current = ctx;
-      try {
-        activeSourceRef.current?.stop();
-      } catch {
-        // Already stopped
-      }
       const source = pluckString({
         context: ctx,
         hz: note.hz,
@@ -243,17 +278,13 @@ export function Tuner() {
         brightness: index < 3 ? 0.48 : 0.64,
       });
       activeSourceRef.current = source;
+      source.onended = finish;
+      setHeard((prev) => (prev.includes(note.name) ? prev : [...prev, note.name]));
       setMessage(`Reference pitch: ${note.label} (${note.name}, ${note.hz.toFixed(2)} Hz)`);
-      source.onended = () => {
-        if (id === requestRef.current) {
-          activeSourceRef.current = null;
-          setPlaying("");
-        }
-      };
     } catch {
-      if (id === requestRef.current) {
-        setMessage("Your browser could not play audio.");
-      }
+      if (id !== requestRef.current) return;
+      finish();
+      setMessage("Your browser could not play audio.");
     }
   }
 
