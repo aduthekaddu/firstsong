@@ -35,9 +35,9 @@ export function subscribeToTakeChanges(listener: TakeListener) {
   };
 }
 
-function notifyTakeSaved(id: string) {
+function notifyTakeChanged(id: string, shared: boolean) {
   for (const listener of takeListeners) listener(id);
-  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
+  if (!shared || typeof window === "undefined" || typeof BroadcastChannel === "undefined") return;
   try {
     const sender = takeChannel ?? new BroadcastChannel(takeChannelName);
     try {
@@ -99,8 +99,13 @@ async function transact<T>(
   }
 }
 
+export function getTemporaryTake(id: string) {
+  return volatile.get(id);
+}
+
 export async function getTake(id: string): Promise<StudioTake | null> {
-  if (volatile.has(id)) return volatile.get(id) ?? null;
+  const temporary = getTemporaryTake(id);
+  if (temporary) return temporary;
   const saved: unknown = await transact("readonly", (store) => store.get(id));
   if (saved === undefined) return null;
   if (!saved || typeof saved !== "object") throw new Error("Invalid saved take.");
@@ -116,14 +121,21 @@ export async function getTake(id: string): Promise<StudioTake | null> {
 }
 
 export async function saveTake(id: string, take: StudioTake) {
-  volatile.set(id, take);
-  // Store plain bytes rather than relying on IndexedDB's Blob backing store.
-  // Read the Blob before opening a transaction, which may auto-close on await.
-  const { blob, seconds, createdAt } = take;
-  const stored: StoredTake = { bytes: await blob.arrayBuffer(), type: blob.type, seconds, createdAt };
-  await transact("readwrite", (store) => store.put(stored, id));
-  if (volatile.get(id) === take) volatile.delete(id);
-  notifyTakeSaved(id);
+  try {
+    // Store plain bytes rather than relying on IndexedDB's Blob backing store.
+    // Read the Blob before opening a transaction, which may auto-close on await.
+    const { blob, seconds, createdAt } = take;
+    const stored: StoredTake = { bytes: await blob.arrayBuffer(), type: blob.type, seconds, createdAt };
+    await transact("readwrite", (store) => store.put(stored, id));
+  } catch (error) {
+    volatile.set(id, take);
+    // This tab can still play or export the take. Other tabs only know about
+    // committed data and must not be told that their saved copy changed.
+    notifyTakeChanged(id, false);
+    throw error;
+  }
+  volatile.delete(id);
+  notifyTakeChanged(id, true);
 }
 
 export function audioExtension(type: string) {

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Download, Mic, Share, Square } from "lucide-react";
 import { scheduleMetronomeClick } from "../lib/sound";
-import { audioExtension, decodeTake, downloadFile, encodeDecodedWav, formatClock, getTake, hasRecordingInput, interruptedTakeMessage, sameStudioTake, saveTake, subscribeToPageReturn, subscribeToTakeChanges, type StudioTake as Take } from "../lib/studio-audio";
+import { audioExtension, decodeTake, downloadFile, encodeDecodedWav, formatClock, getTake, getTemporaryTake, hasRecordingInput, interruptedTakeMessage, sameStudioTake, saveTake, subscribeToPageReturn, subscribeToTakeChanges, type StudioTake as Take } from "../lib/studio-audio";
 import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
@@ -12,6 +12,7 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
   spec: TakeSpec; onBusy?: (busy: boolean) => void; onSaved?: () => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean; filenameId?: string; heading?: "h2" | "h4";
 }) {
   const [take, setTake] = useState<Take | null>(null);
+  const [temporary, setTemporary] = useState(false);
   const [ready, setReady] = useState(false);
   const [url, setUrl] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
@@ -28,7 +29,6 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
   const clock = useRef<number[]>([]);
   const ticks = useRef(0);
   const playback = useRef<HTMLAudioElement>(null);
-  const storageError = useRef(false);
 
   function release() {
     for (const t of clock.current) window.clearTimeout(t);
@@ -59,7 +59,12 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
     if (phase !== "idle") return;
     let active = true;
     getTake(spec.id).then(
-      (data) => { if (active) setTake((prior) => sameStudioTake(prior, data) ? prior : data); },
+      (data) => {
+        if (!active) return;
+        const fallback = getTemporaryTake(spec.id);
+        setTemporary(!!fallback);
+        setTake((prior) => fallback ?? (sameStudioTake(prior, data) ? prior : data));
+      },
       () => { if (active) setMessage((prior) => prior || "Saved takes could not be read. If you record, download the take before closing this page."); },
     ).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
@@ -116,7 +121,6 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
     playback.current?.pause();
     setMessage("");
     setElapsed(0);
-    storageError.current = false;
     try {
       // Unlock audio in the same gesture; the permission request can outlive it.
       let audio: AudioContext | null = null;
@@ -168,15 +172,17 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
           finish("No audio was captured. Any earlier take is unchanged.");
           return;
         }
+        let saved = true;
         try {
           await saveTake(spec.id, next);
         } catch {
-          storageError.current = true;
+          saved = false;
         }
         if (request !== epoch.current) return;
         setTake(next);
-        if (!storageError.current) onSaved?.();
-        finish(storageError.current ? "This take could not be saved for your next visit. Download a copy now." : "Take saved on this device.");
+        setTemporary(!saved);
+        if (saved) onSaved?.();
+        finish(saved ? "Take saved on this device." : "");
       };
       function record() {
         if (request !== epoch.current) return;
@@ -294,6 +300,9 @@ export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled =
           <button type="button" className="btn-secondary" onClick={() => { if (shareFile) void share(shareFile); }}><Share size={14} aria-hidden="true" /> Share audio</button>
         )}
       </div>
+      {temporary && <p className="text-[13px] text-[var(--ink-soft)]" role="status">
+        This take is only available in this tab. Download it before closing or reloading.
+      </p>}
       {message && <p className="text-[13px] text-[var(--muted)]" role="status">{message}</p>}
       {take && spec.trim && !active && !ending && <TrimTake key={take.createdAt} take={take} filenameId={filenameId} />}
     </section>

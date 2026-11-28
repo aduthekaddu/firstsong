@@ -20,7 +20,7 @@ async function record(page: Page, label: string, count = false) {
   await expect(page.getByText(/0:01 \/ /)).toBeVisible();
   await stop.click();
   await expect(page.getByText("Take saved on this device.")).toBeVisible();
-  await expect(page.getByLabel(new RegExp("^" + label + " playback$", "i"))).toHaveAttribute("src", /^blob:/);
+  await expect(page.getByLabel(new RegExp("^" + label.replace(/ again$/, "") + " playback$", "i"))).toHaveAttribute("src", /^blob:/);
 }
 
 test("a phone learner carries a hook through the course and downloads audio and words", async ({ page, context }) => {
@@ -660,3 +660,82 @@ test("blocked IndexedDB is not mistaken for an empty song and text is still down
   const draftManifest = JSON.parse(strFromU8(draft["manifest.json"]));
   expect(draftManifest.omissions).toEqual([{ id: "recording", label: "Demo take" }]);
 });
+
+for (const occupied of [false, true]) {
+  test(`a refused IndexedDB write keeps the current take in this tab (${occupied ? "retake" : "empty slot"})`, async ({ page, context }) => {
+    await context.grantPermissions(["microphone"]);
+    await page.goto("week-6/");
+    await next(page);
+    const player = page.getByLabel("Final song playback");
+    const temporary = page.getByText("This take is only available in this tab. Download it before closing or reloading.");
+    const audioBytes = () => player.evaluate(async (audio: HTMLAudioElement) =>
+      Array.from(new Uint8Array(await (await fetch(audio.src)).arrayBuffer())));
+
+    let previous: number[] = [];
+    if (occupied) {
+      await record(page, "final song");
+      previous = await audioBytes();
+    }
+    await page.evaluate(() => {
+      const put = IDBObjectStore.prototype.put;
+      document.documentElement.dataset.rejectTakeWrite = "true";
+      IDBObjectStore.prototype.put = function (value, key) {
+        const request = put.call(this, value, key);
+        if (this.name === "takes" && key === "final" && document.documentElement.dataset.rejectTakeWrite === "true") {
+          this.transaction.abort();
+        }
+        return request;
+      };
+    });
+    await page.getByRole("button", { name: occupied ? "Record final song again" : "Record final song", exact: true }).click();
+    await expect(page.getByText(/0:02 \/ /)).toBeVisible();
+    await page.getByRole("button", { name: "Stop recording", exact: true }).click();
+    await expect(temporary).toBeVisible();
+    await expect(player).toHaveAttribute("src", /^blob:/);
+    await expect.poll(audioBytes).not.toEqual(previous);
+    const latest = await audioBytes();
+    expect(latest.length).toBeGreaterThan(0);
+
+    const other = await context.newPage();
+    await other.goto("week-6/");
+    const otherPlayer = other.getByLabel("Final song playback");
+    if (occupied) {
+      await expect(otherPlayer).toHaveAttribute("src", /^blob:/);
+      expect(await otherPlayer.evaluate(async (audio: HTMLAudioElement) =>
+        Array.from(new Uint8Array(await (await fetch(audio.src)).arrayBuffer())))).toEqual(previous);
+    } else {
+      await expect(other.getByRole("button", { name: "Record final song", exact: true })).toBeEnabled();
+      await expect(otherPlayer).toHaveCount(0);
+    }
+    await other.close();
+
+    // Returning to the recording step remounts the recorder in the same tab.
+    await page.getByRole("button", { name: "Previous step" }).click();
+    await next(page);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(temporary).toBeVisible();
+    await expect(player).toHaveAttribute("src", /^blob:/);
+    expect(await audioBytes()).toEqual(latest);
+    const pending = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Download original" }).click();
+    expect(await readFile((await (await pending).path())!)).toEqual(Buffer.from(latest));
+
+    await page.getByRole("button", { name: "Back up your song" }).click();
+    await expect(page.getByText("Ready to save: your song notes and 1 original take.")).toBeVisible();
+    const archive = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save ZIP" }).press("Enter");
+    const files = unzipSync(await readFile((await (await archive).path())!));
+    const entry = Object.keys(files).find((name) => name.startsWith("takes/final."));
+    expect(entry).toBeDefined();
+    expect(Buffer.from(files[entry!])).toEqual(Buffer.from(latest));
+
+    await page.evaluate(() => delete document.documentElement.dataset.rejectTakeWrite);
+    await record(page, "final song again");
+    await expect(temporary).toHaveCount(0);
+    await expect.poll(audioBytes).not.toEqual(latest);
+    const committed = await audioBytes();
+    await page.reload();
+    await expect(player).toHaveAttribute("src", /^blob:/);
+    expect(await audioBytes()).toEqual(committed);
+  });
+}
