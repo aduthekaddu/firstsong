@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readLessonProgress, writeLessonProgress } from "../lib/lesson-progress.ts";
+import { readReturnLesson, readLessonProgress, writeLessonProgress } from "../lib/lesson-progress.ts";
 
 const lesson = { id: "example", steps: [{ id: "start" }, { id: "middle" }, { id: "end" }] };
 const key = "firstsong:v1:lesson:example";
@@ -30,4 +30,19 @@ test("new progress combines with legacy marks and ignores retired step IDs", () 
   assert.deepEqual(readLessonProgress(source, lesson), {
     current: "end", visited: ["start", "middle"], checkpoint: true, damaged: false,
   });
+});
+
+test("the home shortcut ignores an old route-only hint and keeps valid review history", () => {
+  const weekSix = { ...lesson, id: "week-6" };
+  const lessons = [lesson, weekSix];
+  const last = "firstsong:v1:last-course-lesson";
+  const source = storage([[last, weekSix.id]]);
+  assert.equal(readReturnLesson(source, lessons), null);
+  writeLessonProgress(source, lesson, "end", "end", true);
+  source.setItem(last, weekSix.id); // A legacy build visited here without saving.
+  assert.deepEqual(readReturnLesson(source, lessons), { lesson, checkpoint: true });
+  writeLessonProgress(source, weekSix, "start");
+  assert.deepEqual(readReturnLesson(source, lessons), { lesson: weekSix, checkpoint: false });
+  writeLessonProgress(source, lesson, "middle");
+  assert.deepEqual(readReturnLesson(source, lessons), { lesson, checkpoint: true });
 });

@@ -40,6 +40,8 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await next(page);
   await page.getByLabel("Four-bar memo tempo").selectOption("90");
   await record(page, "four-bar memo", true);
+  await page.goto("week-6/");
+  await expect(page.getByRole("heading", { name: "Test your sound" })).toBeVisible();
   await page.getByRole("link", { name: "Firstsong", exact: true }).click();
   await page.getByRole("link", { name: "Resume Week 1" }).click();
   await expect(page.getByRole("heading", { name: "Make a four-bar memo" })).toBeVisible();
@@ -108,6 +110,19 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await expect(page.getByLabel("Chorus A playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Chorus B playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   expect(errors).toEqual([]);
+});
+
+test("opening a lesson does not start it, but saving a first-step lyric does", async ({ page, context }) => {
+  await page.goto("week-6/");
+  await expect(page.getByRole("heading", { name: "Test your sound" })).toBeVisible();
+  await page.getByRole("link", { name: "Firstsong", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Start Stage 0" })).toBeVisible();
+  const lesson = await context.newPage();
+  await lesson.goto("week-1/");
+  await lesson.getByLabel("Title line").fill("Back to the blue cup");
+  await page.getByRole("link", { name: "Resume Week 1" }).click();
+  await expect(page.getByRole("heading", { name: "Find a title line" })).toBeVisible();
+  await expect(page.getByLabel("Title line")).toHaveValue("Back to the blue cup");
 });
 
 test("every exported lesson fits the smallest mobile viewport", async ({ page }) => {

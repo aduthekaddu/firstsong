@@ -55,9 +55,9 @@ const checkpoints: Record<string, Exercise> = {
   "weeks-7-8": { takes: [studioTakes.guitar, studioTakes.vocal], sheet: true },
 };
 
-export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "", onBusy, archive = false }: {
+export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "", onBusy, onSaved, archive = false }: {
   lessonId: string; stepId: string; firstLine?: string; oldNotes?: string;
-  onBusy?: (busy: boolean) => void; archive?: boolean;
+  onBusy?: (busy: boolean) => void; onSaved?: () => void; archive?: boolean;
 }) {
   const readOnly = stepId === "checkpoint" || archive;
   const exercise: Exercise | undefined = archive
@@ -67,6 +67,10 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
   const [active, setActive] = useState<string | null>(null);
   const id = useId();
   if (!exercise) return null;
+
+  function saveField(field: SongField, text: string) {
+    if (song.save(field, text)) onSaved?.();
+  }
 
   function exportSheet() {
     const sheet = buildSongSheet(song.value);
@@ -81,7 +85,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
           <p className="text-[13px] font-medium text-[var(--ink)]">From your earlier practice</p>
           {firstLine.trim() && <p className="whitespace-pre-wrap break-words text-[15px] text-[var(--ink-soft)]">{firstLine}</p>}
           {oldNotes.trim() && <p className="whitespace-pre-wrap break-words text-[14px] text-[var(--muted)]">{oldNotes}</p>}
-          {firstLine.trim() && !song.value.hook && <button type="button" className="btn-secondary" disabled={!song.ready} onClick={() => song.save("hook", firstLine)}>Use your Stage 0 line</button>}
+          {firstLine.trim() && !song.value.hook && <button type="button" className="btn-secondary" disabled={!song.ready} onClick={() => saveField("hook", firstLine)}>Use your Stage 0 line</button>}
         </div>
       )}
 
@@ -120,7 +124,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
               maxLength: limit,
               disabled: !song.ready,
               className: inputClass,
-              onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => song.save(field, event.target.value),
+              onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => saveField(field, event.target.value),
             };
             return readOnly ? song.value[field].trim() && (
               <div key={field} className="space-y-1">
@@ -143,7 +147,7 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
       })}>
         {archive && <LegacyTakeShelf />}
         {exercise.takes?.map((spec) => <StudioTake key={spec.id} spec={spec} readOnly={readOnly} hideEmpty={archive}
-          disabled={active !== null && active !== spec.id}
+          disabled={active !== null && active !== spec.id} onSaved={onSaved}
           onBusy={(busy) => {
             setActive(busy ? spec.id : null);
             onBusy?.(busy);

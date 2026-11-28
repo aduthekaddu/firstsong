@@ -8,8 +8,8 @@ import type { TakeSpec } from "../lib/song-project";
 
 type Phase = "idle" | "mic" | "count" | "record" | "save";
 
-export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, hideEmpty = false, filenameId = spec.id, heading: Heading = "h4" }: {
-  spec: TakeSpec; onBusy?: (busy: boolean) => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean; filenameId?: string; heading?: "h2" | "h4";
+export function StudioTake({ spec, onBusy, onSaved, readOnly = false, disabled = false, hideEmpty = false, filenameId = spec.id, heading: Heading = "h4" }: {
+  spec: TakeSpec; onBusy?: (busy: boolean) => void; onSaved?: () => void; readOnly?: boolean; disabled?: boolean; hideEmpty?: boolean; filenameId?: string; heading?: "h2" | "h4";
 }) {
   const [take, setTake] = useState<Take | null>(null);
   const [ready, setReady] = useState(false);
@@ -175,6 +175,7 @@ export function StudioTake({ spec, onBusy, readOnly = false, disabled = false, h
         }
         if (request !== epoch.current) return;
         setTake(next);
+        if (!storageError.current) onSaved?.();
         finish(storageError.current ? "This take could not be saved for your next visit. Download a copy now." : "Take saved on this device.");
       };
       function record() {

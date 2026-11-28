@@ -77,6 +77,7 @@ export function useSongProject(id?: string) {
       else next.add(field);
       return next;
     });
+    return saved;
   }
 
   const warning = unsaved.size ? "Some edits could not be saved for your next visit. Keep a copy before leaving."

@@ -1,5 +1,6 @@
 import type { Lesson } from "./lessons";
 
+const lastLessonKey = "firstsong:v1:last-course-lesson";
 const baseKey = (lesson: Lesson) => `firstsong:v1:lesson:${lesson.id}`;
 const positionKey = (lesson: Lesson) => `${baseKey(lesson)}:position`;
 const checkpointKey = (lesson: Lesson) => `${baseKey(lesson)}:checkpoint`;
@@ -34,6 +35,21 @@ export function readLessonProgress(source: Storage, lesson: Lesson): LessonProgr
   };
 }
 
+// Older versions put the last opened route here. Treat it as a hint only
+// when it points to a lesson with saved work.
+export function readReturnLesson(source: Storage, lessons: readonly Lesson[]) {
+  const recent = source.getItem(lastLessonKey);
+  const ordered = [...lessons].reverse();
+  const candidates = [...ordered.filter((item) => item.id === recent), ...ordered.filter((item) => item.id !== recent)];
+  for (const lesson of candidates) {
+    const saved = readLessonProgress(source, lesson);
+    if (saved.current || saved.checkpoint || saved.visited.length) {
+      return { lesson, checkpoint: saved.checkpoint };
+    }
+  }
+  return null;
+}
+
 export function isLessonStorageChange(key: string | null, lesson: Lesson) {
   return key === null || key === baseKey(lesson) || key.startsWith(`${baseKey(lesson)}:`);
 }
@@ -44,4 +60,5 @@ export function writeLessonProgress(source: Storage, lesson: Lesson, current: st
   if (completed) source.setItem(doneKey(lesson, completed), "1");
   if (checkpoint) source.setItem(checkpointKey(lesson), "1");
   source.setItem(positionKey(lesson), current);
+  if (lesson.id !== "stage-0") source.setItem(lastLessonKey, lesson.id);
 }

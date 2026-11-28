@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, HelpCircle } from "lucide-react";
 import { course, lessonHref, type Lesson, type LessonStep } from "../lib/lessons";
-import { emptyLessonProgress, readLessonProgress } from "../lib/lesson-progress";
+import { readReturnLesson } from "../lib/lesson-progress";
 import { useLessonProgress } from "../lib/use-lesson-progress";
 import { useLocalValue } from "../lib/local-value";
 import { CourseArc } from "./course-arc";
@@ -20,7 +20,6 @@ import { firstLineKey, maxLineLength, parseFirstLine, parseRhythm, rhythmKey, ty
 import { RecordingLink as Link, useRecordingNavigation } from "./recording-navigation";
 import { SongWorkbench } from "./song-workbench";
 
-const lastLessonKey = "firstsong:v1:last-course-lesson";
 const maxNotesLength = 320;
 
 function parseNotes(value: unknown) {
@@ -28,29 +27,16 @@ function parseNotes(value: unknown) {
 }
 
 function getReturnLesson(): { href: string; label: string } | null {
-  let recent: string | null = null;
   try {
-    recent = localStorage.getItem(lastLessonKey);
+    const saved = readReturnLesson(localStorage, course.slice(1));
+    if (!saved) return null;
+    const { lesson, checkpoint } = saved;
+    const action = checkpoint ? "Review" : "Resume";
+    const stage = lesson.id === "weeks-7-8" ? "Weeks 7–8" : lesson.stage;
+    return { href: `${lessonHref(lesson.id)}#lesson`, label: `${action} ${stage}` };
   } catch {
     return null;
   }
-
-  const laterLessons = course.slice(1).reverse();
-  const lastOpened = laterLessons.find((item) => item.id === recent);
-  const candidates = lastOpened ? [lastOpened] : laterLessons;
-  for (const item of candidates) {
-    let saved = emptyLessonProgress;
-    try {
-      saved = readLessonProgress(localStorage, item);
-    } catch {
-      // A damaged entry should not hide the rest of the learner's progress.
-    }
-    if (!saved.current && !saved.checkpoint && item !== lastOpened) continue;
-    const action = saved.checkpoint ? "Review" : "Resume";
-    const stage = item.id === "weeks-7-8" ? "Weeks 7–8" : item.stage;
-    return { href: `${lessonHref(item.id)}#lesson`, label: `${action} ${stage}` };
-  }
-  return null;
 }
 
 export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: boolean }) {
@@ -75,22 +61,16 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
   const [returnLesson, setReturnLesson] = useState<ReturnType<typeof getReturnLesson>>(null);
 
   useEffect(() => {
-    if (home) {
-      const updateReturnLesson = () => setReturnLesson(getReturnLesson());
-      updateReturnLesson();
-      window.addEventListener("pageshow", updateReturnLesson);
-      window.addEventListener("storage", updateReturnLesson);
-      return () => {
-        window.removeEventListener("pageshow", updateReturnLesson);
-        window.removeEventListener("storage", updateReturnLesson);
-      };
-    }
-    try {
-      localStorage.setItem(lastLessonKey, lesson.id);
-    } catch {
-      // The lesson still works when storage is blocked.
-    }
-  }, [home, lesson.id]);
+    if (!home) return;
+    const updateReturnLesson = () => setReturnLesson(getReturnLesson());
+    updateReturnLesson();
+    window.addEventListener("pageshow", updateReturnLesson);
+    window.addEventListener("storage", updateReturnLesson);
+    return () => {
+      window.removeEventListener("pageshow", updateReturnLesson);
+      window.removeEventListener("storage", updateReturnLesson);
+    };
+  }, [home]);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
   const focusNextRef = useRef(false);
@@ -429,7 +409,8 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
 
                     {step.kind === "practice" && (
                       <SongWorkbench lessonId={lesson.id} stepId={step.id} firstLine={line.value}
-                        oldNotes={weekOneNotes.value} onBusy={handleRecordingBusy} />
+                        oldNotes={weekOneNotes.value} onBusy={handleRecordingBusy}
+                        onSaved={() => progress.save(step.id)} />
                     )}
 
                     <PracticeTimer minutes={step.minutes} />

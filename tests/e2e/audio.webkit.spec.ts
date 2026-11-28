@@ -127,6 +127,26 @@ test("WebKit records, reloads and exports non-silent audio", async ({ page, cont
 });
 
 
+test("a saved first-step sound check becomes the home resume point in WebKit", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("week-1/");
+  await page.getByLabel("Title line").fill("An earlier start");
+  await page.goto("week-6/");
+  await expect(page.getByRole("heading", { name: "Test your sound" })).toBeVisible();
+  await installTone(page);
+  await page.getByRole("button", { name: "Record sound check", exact: true }).click();
+  await expect(page.getByText(/0:01 \/ /)).toBeVisible();
+  await page.getByRole("button", { name: "Stop recording", exact: true }).click();
+  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  const original = await digest(page.getByLabel("Sound check playback"));
+  await page.getByRole("link", { name: "Firstsong", exact: true }).click();
+  await page.getByRole("link", { name: "Resume Week 6" }).click();
+  await expect(page.getByRole("heading", { name: "Test your sound" })).toBeVisible();
+  await expect(page.getByLabel("Sound check playback")).toHaveAttribute("src", /^blob:/);
+  expect(await digest(page.getByLabel("Sound check playback"))).toEqual(original);
+});
+
 test("WebKit saves a Stage 0 hook and plays it after reload", async ({ page, context }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await context.grantPermissions(["microphone"]);
