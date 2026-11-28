@@ -2,9 +2,9 @@
 
 import { useId, useState } from "react";
 import { RecordingLink as Link } from "./recording-navigation";
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import { buildSongSheet, downloadFile } from "../lib/studio-audio";
-import { songFieldLimit, studioTakes, type SongField, type TakeSpec } from "../lib/song-project";
+import { songFieldLimit, studioTakes, type SongField, type SongProject, type TakeSpec } from "../lib/song-project";
 import { useSongProject } from "../lib/use-song-project";
 import { chords } from "../lib/chords";
 import { ChordDiagram } from "./chord-diagram";
@@ -26,7 +26,7 @@ const fields: Record<SongField, { label: string; hint: string; rows?: number }> 
   revision: { label: "One thing to keep", hint: "Name what you heard and what you’ll use in the final take.", rows: 2 },
 };
 
-type Exercise = { fields?: SongField[]; takes?: TakeSpec[]; chord?: boolean; sheet?: boolean; backup?: boolean; cue?: string };
+type Exercise = { fields?: SongField[]; takes?: TakeSpec[]; chord?: boolean; sheet?: boolean; backup?: boolean; lyricCue?: boolean; cue?: string };
 const exercises: Record<string, Exercise> = {
   "week-1:title": { fields: ["details", "hook"] },
   "week-1:melody": { fields: ["hook", "keyword"], takes: [studioTakes.melody] },
@@ -40,7 +40,7 @@ const exercises: Record<string, Exercise> = {
   "week-5:map": { fields: ["arrangement"] },
   "week-5:versions": { takes: [studioTakes.chorusA, studioTakes.chorusB], fields: ["revision"] },
   "week-6:test": { takes: [studioTakes.soundcheck], cue: "Listen for a comfortable balance and clean sound. If the voice disappears, angle the phone closer to your mouth and try again." },
-  "week-6:export": { takes: [studioTakes.final], sheet: true, backup: true },
+  "week-6:export": { takes: [studioTakes.final], sheet: true, backup: true, lyricCue: true },
   "weeks-7-8:layers": { takes: [studioTakes.guitar, studioTakes.vocal], cue: "Prepare a WAV for each pass, then import them into your recording program. These takes aren’t synced. Use headphones to record against a guide track and line up the passes by ear." },
   "weeks-7-8:mix": { sheet: true, cue: "In your recording program, bring the vocal forward, then bring the guitar up until it supports it. Export a lossless master and a smaller listening copy. Open both files before starting your next song." },
 };
@@ -54,6 +54,37 @@ const checkpoints: Record<string, Exercise> = {
   "week-6": { takes: [studioTakes.final], sheet: true, backup: true },
   "weeks-7-8": { takes: [studioTakes.guitar, studioTakes.vocal], sheet: true },
 };
+
+const cueFields = ["chords", "verseOne", "chorus", "verseTwo", "ending", "arrangement"] as const;
+
+function LyricCue({ song }: { song: SongProject }) {
+  const labelId = useId();
+  const sections = cueFields.flatMap((field) => {
+    const text = field === "chorus" ? song.chorus.trim() || song.hook.trim() : song[field].trim();
+    const label = field === "chorus" && !song.chorus.trim() ? fields.hook.label : fields[field].label;
+    return text ? [{ field, label, text }] : [];
+  });
+  if (!sections.length) return null;
+  return (
+    <details className="ledger-disclosure group min-w-0 border-y border-[var(--line)]">
+      <summary id={labelId} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 py-2 text-[14px] font-medium text-[var(--ink)]">
+        Your lyrics and chords
+        <ChevronDown size={16} aria-hidden="true" className="shrink-0 text-[var(--muted)] group-open:rotate-180" />
+      </summary>
+      <section aria-labelledby={labelId} tabIndex={0} className="max-h-[42svh] overflow-y-auto rounded-[var(--r-sm)] bg-[var(--surface)] px-3 py-4 sm:px-4">
+        {song.title.trim() && <p className="mb-4 whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] font-medium">{song.title.trim()}</p>}
+        <dl className="space-y-4">
+          {sections.map(({ field, label, text }) => (
+            <div key={field}>
+              <dt className="mb-1 text-[13px] text-[var(--muted)]">{label}</dt>
+              <dd data-cue={field} className="m-0 whitespace-pre-wrap [overflow-wrap:anywhere] text-[17px] leading-relaxed text-[var(--ink)]">{text}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    </details>
+  );
+}
 
 export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "", onBusy, onSaved, archive = false }: {
   lessonId: string; stepId: string; firstLine?: string; oldNotes?: string;
@@ -154,6 +185,8 @@ export function SongWorkbench({ lessonId, stepId, firstLine = "", oldNotes = "",
             if (busy) document.querySelectorAll<HTMLAudioElement>("#lesson audio").forEach((audio) => audio.pause());
           }} />)}
       </div>
+
+      {exercise.lyricCue && <LyricCue song={song.value} />}
 
       {archive && <p className="text-[13px] text-[var(--muted)]">Recordings appear here as you make them.</p>}
 

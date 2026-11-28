@@ -125,6 +125,49 @@ test("opening a lesson does not start it, but saving a first-step chord plan doe
   await expect(page.getByLabel("Chords by section")).toHaveValue("Verse: Em | Asus2");
 });
 
+test("the final lyric and chord cue stays readable beside the recorder at 320px", async ({ page, context }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await context.grantPermissions(["microphone"]);
+  await page.goto("week-6/");
+  await next(page);
+  const summary = page.getByText("Your lyrics and chords", { exact: true });
+  await expect(summary).toHaveCount(0);
+
+  const verse = "My coat drips by the door\nThe train rolls in at four";
+  const chorus = "Blue cup in the rain\nLeave a light on again";
+  await page.evaluate(({ verse, chorus }) => {
+    localStorage.setItem("firstsong:v1:song-project", JSON.stringify({
+      title: "Blue Cup", verseOne: verse, chorus, verseTwo: "A".repeat(160), chords: "Verse: Em | Asus2",
+      ending: "Let Em ring", arrangement: "Strum quietly\n".repeat(30),
+    }));
+  }, { verse, chorus });
+  await page.reload();
+  const cue = page.getByRole("region", { name: "Your lyrics and chords" });
+  await expect(cue).toBeHidden();
+  await summary.press("Enter");
+  await expect(cue).toBeVisible();
+  expect(await cue.locator('[data-cue="verseOne"]').textContent()).toBe(verse);
+  expect(await cue.locator('[data-cue="chorus"]').textContent()).toBe(chorus);
+  await expect(cue.locator('[data-cue="verseOne"]')).toHaveCSS("white-space", "pre-wrap");
+  await expect(cue.getByText("Verse: Em | Asus2", { exact: true })).toBeVisible();
+  await expect(cue.getByText("Let Em ring", { exact: true })).toBeAttached();
+  expect(await cue.evaluate((el) => el.scrollHeight > el.clientHeight && el.scrollWidth <= el.clientWidth)).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.getByRole("button", { name: "Record final song", exact: true }).click();
+  const stop = page.getByRole("button", { name: "Stop recording", exact: true });
+  await expect(stop).toBeInViewport();
+  await expect(cue).toBeInViewport();
+  await cue.focus();
+  await page.keyboard.press("PageDown");
+  await expect.poll(() => cue.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(page.getByText(/0:01 \/ /)).toBeVisible();
+  await stop.click();
+  await expect(page.getByText("Take saved on this device.")).toBeVisible();
+  await expect(page.getByLabel("Final song playback")).toHaveAttribute("src", /^blob:/);
+  await expect(cue).toBeVisible();
+});
+
 test("every exported lesson fits the smallest mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 750 });
   for (const route of ["", "week-1/", "week-2/", "week-3/", "week-4/", "week-5/", "week-6/", "weeks-7-8/", "songbook/", "chords/"]) {
