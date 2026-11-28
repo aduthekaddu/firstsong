@@ -108,7 +108,23 @@ test("a phone learner carries a hook through the course and downloads audio and 
   const sheet = await sheetDownload;
   expect(sheet.suggestedFilename()).toBe("blue-cup-lyrics-and-chords.txt");
   expect(await readFile((await sheet.path())!, "utf8")).toContain("Em | Asus2");
-  await page.goto("songbook/");
+  await page.setViewportSize({ width: 320, height: 750 });
+  await page.getByRole("button", { name: "Finish Week 6" }).click();
+  await expect(page.getByRole("heading", { name: "Week 6 checkpoint" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("link", { name: "Optional: layers and mix", exact: true }).click();
+  await expect(page).toHaveURL(/\/firstsong\/weeks-7-8\/$/);
+  await expect(page.getByRole("heading", { name: "Record the layers" })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "Week 6 checkpoint" })).toBeVisible();
+  await page.getByRole("link", { name: "Start your next song", exact: true }).click();
+  await expect(page).toHaveURL(/\/firstsong\/songbook\/#new-song$/);
+  await expect(page.getByRole("heading", { name: "Write another song" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Independent songs" })).toHaveCount(0);
+  await page.getByRole("button", { name: "New blank song" }).click();
+  await expect(page.getByLabel("Song title")).toBeEnabled();
+  await expect(page.getByLabel("Song title")).toHaveValue("");
+  await page.getByRole("link", { name: "Back to your songbook" }).click();
   await expect(page.getByRole("heading", { name: "Your songbook" })).toBeVisible();
   await expect(page.getByText("Blue Cup", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Final song playback", { exact: true })).toHaveAttribute("src", /^blob:/);
@@ -116,6 +132,9 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await expect(page.getByLabel("Chorus B playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Verse and chorus playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Full draft playback", { exact: true })).toHaveAttribute("src", /^blob:/);
+  await page.getByRole("link", { name: "Firstsong", exact: true }).click();
+  await page.getByRole("link", { name: "Review Week 6", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Week 6 checkpoint" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

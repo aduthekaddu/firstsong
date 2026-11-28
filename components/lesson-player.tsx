@@ -448,7 +448,17 @@ export function LessonPlayer({ lesson, home = false }: { lesson: Lesson; home?: 
                   <span>{finished ? "Review last step" : "Previous step"}</span>
                 </button>
 
-                {finished ? (
+                {finished && lesson.id === "week-6" ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <Link href="/songbook/#new-song" className="btn-primary">
+                      <span>Start your next song</span>
+                      <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
+                    </Link>
+                    <Link href="/weeks-7-8/" className="ui-link inline-flex min-h-11 items-center text-[14px]">
+                      Optional: layers and mix
+                    </Link>
+                  </div>
+                ) : finished ? (
                   <Link href={nextLesson ? lessonHref(nextLesson.id) : "/songbook/"} className="btn-primary">
                     <span>{nextLesson ? `Continue to ${nextLesson.stage}` : "Open your songbook"}</span>
                     <ArrowRight size={15} strokeWidth={1.5} aria-hidden="true" />
