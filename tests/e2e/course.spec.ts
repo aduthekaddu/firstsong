@@ -69,14 +69,18 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await page.getByRole("link", { name: "Continue to Week 3" }).click();
   await page.getByLabel("Chorus", { exact: true }).fill("Rain in my blue cup");
   await next(page);
+  await record(page, "verse and chorus");
   await page.getByRole("button", { name: "Finish Week 3" }).click();
+  await expect(page.getByLabel("Verse and chorus playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await page.getByRole("link", { name: "Continue to Week 4" }).click();
   await expect(page.getByLabel("Verse 1")).toHaveValue("My coat drips by the door");
   await page.getByLabel("Song title").fill("Blue Cup");
   await page.getByLabel("Verse 2").fill("Morning on the windowsill");
   await next(page);
   await page.getByLabel("How it ends").fill("Let Em ring");
+  await record(page, "full draft");
   await page.getByRole("button", { name: "Finish Week 4" }).click();
+  await expect(page.getByLabel("Full draft playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await page.getByRole("link", { name: "Continue to Week 5" }).click();
   await page.getByLabel("Arrangement map").fill("Verse quiet, chorus louder");
   await next(page);
@@ -110,6 +114,8 @@ test("a phone learner carries a hook through the course and downloads audio and 
   await expect(page.getByLabel("Final song playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Chorus A playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   await expect(page.getByLabel("Chorus B playback", { exact: true })).toHaveAttribute("src", /^blob:/);
+  await expect(page.getByLabel("Verse and chorus playback", { exact: true })).toHaveAttribute("src", /^blob:/);
+  await expect(page.getByLabel("Full draft playback", { exact: true })).toHaveAttribute("src", /^blob:/);
   expect(errors).toEqual([]);
 });
 
